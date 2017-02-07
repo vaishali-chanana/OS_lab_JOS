@@ -16,7 +16,6 @@
 /sol?/
 /prep?/
 /prep*.tar.gz
-/conf/lab.mk
 *~
 
 # eclipse settings
