@@ -210,6 +210,7 @@ handin: handin-check realclean
 	@rm -rf /tmp/$(NETID)-lab$(LAB).tar.gz
 	@git archive --format=tar HEAD | gzip > /tmp/$(NETID)-lab$(LAB).tar.gz
 	@echo Submitting to the handin server...
+	@chmod og-rwx handin-key
 	@./handin.sh /tmp/$(NETID)-lab$(LAB).tar.gz
 
 handin-check:
