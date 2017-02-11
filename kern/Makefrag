@@ -9,7 +9,7 @@ OBJDIRS += kern
 
 KERN_LDFLAGS := $(LDFLAGS) -T kern/kernel.ld 
 
-KERN_LDFLAGS += -nostdlib --no-gc-sections --print-gc-sections -Map=vivek.map
+KERN_LDFLAGS += -nostdlib --no-gc-sections --print-gc-sections
 
 
 # entry.S must be first, so that it's the first code in the text segment!!!
