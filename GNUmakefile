@@ -23,6 +23,8 @@ endif
 
 -include conf/env.mk
 
+-include conf/user.mk
+
 LABSETUP ?= ./
 
 TOP = .
@@ -187,9 +189,7 @@ clean:
 	rm -rf $(OBJDIR) .gdbinit jos.in qemu.log
 
 realclean: clean
-	rm -rf lab$(LAB).tar.gz \
-		jos.out $(wildcard jos.out.*) \
-		qemu.pcap $(wildcard qemu.pcap.*)
+	rm -rf lab$(LAB).tar.gz jos.out $(wildcard jos.out.*) qemu.pcap $(wildcard qemu.pcap.*)
 
 distclean: realclean
 	rm -rf conf/gcc.mk
@@ -204,34 +204,30 @@ grade:
 	  (echo "'make clean' failed.  HINT: Do you have another running instance of JOS?" && exit 1)
 	./grade-lab$(LAB) $(GRADEFLAGS)
 
-handin: realclean
-	@if [ `git status --porcelain| wc -l` != 0 ] ; then echo "\n\n\n\n\t\tWARNING: YOU HAVE UNCOMMITTED CHANGES\n\n    Consider committing any pending changes and rerunning make handin.\n\n\n\n"; fi
-	git tag -f -a lab$(LAB)-handin -m "Lab$(LAB) Handin"
-	git push --tags handin
+handin: handin-check realclean
+	@echo Packing the lab code...
+	@git tag -f -a lab$(LAB)-handin -m "Lab$(LAB) Handin"
+	@rm -rf /tmp/$(NETID)-lab$(LAB).tar.gz
+	@git archive --format=tar HEAD | gzip > /tmp/$(NETID)-lab$(LAB).tar.gz
+	@echo Submitting to the handin server...
+	@./handin.sh /tmp/$(NETID)-lab$(LAB).tar.gz
 
 handin-check:
+	@if [ `git status --porcelain | wc -l` != 0 ] ; then \
+		echo "!!! You have uncomitted changes.  Please commit or stash them."; \
+		false; \
+	fi
 	@if test "$$(git symbolic-ref HEAD)" != refs/heads/lab$(LAB); then \
 		git branch; \
-		read -p "You are not on the lab$(LAB) branch.  Hand-in the current branch? [y/N] " r; \
+		read -p "!!! You are not on the lab$(LAB) branch.  Hand-in the current branch? [y/N] " r; \
 		test "$$r" = y; \
-	fi
-	@if ! git diff-files --quiet || ! git diff-index --quiet --cached HEAD; then \
-		git status; \
-		echo; \
-		echo "You have uncomitted changes.  Please commit or stash them."; \
-		false; \
 	fi
 	@if test -n "`git ls-files -o --exclude-standard`"; then \
 		git status; \
-		read -p "Untracked files will not be handed in.  Continue? [y/N] " r; \
+		read -p "!!! Untracked files will not be handed in.  Continue? [y/N] " r; \
 		test "$$r" = y; \
 	fi
 
-tarball: handin-check
-	git archive --format=tar HEAD | gzip > lab$(LAB)-handin.tar.gz
-
-handin-prep:
-	@./handin-prep
 
 
 # This magic automatically generates makefile dependencies
@@ -248,4 +244,4 @@ always:
 	@:
 
 .PHONY: all always \
-	handin tarball clean realclean distclean grade handin-prep handin-check
+	clean realclean distclean grade handin-check handin
