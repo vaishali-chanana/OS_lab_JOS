@@ -124,7 +124,7 @@ verify_cpu:
     popfl
     pushfl
     popl %eax
-    cmpl %eax, %ebx
+    cmpl %eax, %ecx
     jz verify_cpu_no_longmode   # no cpuid -- no long mode
 
     movl $0x0, %eax              # see if cpuid 1 is implemented
