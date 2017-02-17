@@ -210,11 +210,11 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 
 			// (unsigned) octal
 		case 'o':
-			// Replace this with your code.
-			putch('X', putdat);
-			putch('X', putdat);
-			putch('X', putdat);
-			break;
+                        // Keeping 'lflag' variable as argument as 'o' could be preceded with 'l'
+                        // to support octal conversion of long int, for which lflag is incremented everytime 'l' is encountered.
+			num = getuint(&aq,lflag);
+                        base = 8;
+                        goto number;
 
 			// pointer
 		case 'p':
