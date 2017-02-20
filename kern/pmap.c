@@ -221,20 +221,13 @@ boot_alloc(uint32_t n)
         result = nextfree;
 	//cprintf("\nValue of nextfree %016x",nextfree);
         if (n){
-		//cprintf("\nValues:first mmap %016x",KADDR(0x100000));
-		//cprintf("\nValues:last mmap %016x",KADDR(0xffdffff));
-		//cprintf("\n Value of KERNBASE %016x",KERNBASE);
 		int next_bits_to_allocate = ROUNDUP(n,PGSIZE);
-		//cprintf("\nNext bits to allocate %016x",next_bits_to_allocate);
-        	// __VAISHALI__allocate contiguous physical memory to hold n bytes
-		// __VAISHALI__check if next contiguous n bits are free or not - if yes, then
-                // __VAISHALI__allocate the bits otherwise panic
-		if( nextfree + next_bits_to_allocate > (char*)KADDR(0xffdffff)){
+		//seen from logs, the last available address
+		if( nextfree + next_bits_to_allocate > (char*) KADDR(0xffdfff))
 			panic("\nNo memory available to allocate");
-		}else{
+		else
 			nextfree = nextfree + next_bits_to_allocate;
-			result = nextfree;
-		}
+	//		cprintf("Nextfreemem after call %016x",nextfree);
 	}
 	return result;
 }
@@ -381,18 +374,33 @@ page_init(void)
 	// NB: Remember to mark the memory used for initial boot page table,
 	// i.e (va>=BOOT_PAGE_TABLE_START && va < BOOT_PAGE_TABLE_END) as in-use (not free)
 	size_t i;
-	struct PageInfo* last = NULL;
+	//struct PageInfo* last = NULL;
 	for (i = 0; i < npages; i++) {
-		// __VAISHALI_write 4096 in pa
 		pages[i].pp_link = NULL;
 		pages[i].pp_ref = 0;
-		if(i>0 && (page2pa(&pages[i])>=PGSIZE && page2pa(&pages[i])<(PGSIZE+(npages_basemem*PGSIZE))) && page2pa(&pages[i])>=EXTPHYSMEM && last!=NULL){
-// point 4?
-			//to insert in the list which ones are free
-			pages[i].pp_ref++;
-			last->pp_link = &pages[i];
-			last = &pages[i];
-		}else{
+		if(i<10){
+		cprintf("\nFirst pages %016x and value %016x and pa %016x",&pages[i],pages[i],page2pa(&pages[i]));
+		}
+		else if(i>(npages-10)){
+			cprintf("\nAddress of page %016x and value %016x and pa %016x" ,&pages[i],pages[i],page2pa(&pages[i]));
+		}
+/*************************
+What is free? 
+-page 1 till iophysmem
+- boot_alloc(0) till infinity love:)
+What is in use?
+-1st page
+- i/o lock[iophysmem to extphysmem)
+- extphysmem already being used [extphysmem to boot_aloc(0)-1
+
+page2pa() would give result?
+where is bootstrap code?
+*********************/
+		int iolock_n_used = npages_basemem+((PADDR(boot_alloc(0))-IOPHYSMEM)/PGSIZE);
+		if(i==0 || (i>=npages_basemem && i<iolock_n_used))
+			pages[i].pp_ref = 1;
+		else {
+			pages[i].pp_link = page_free_list;
 			page_free_list = &pages[i];
 		}
 	}
@@ -414,8 +422,8 @@ struct PageInfo *
 page_alloc(int alloc_flags)
 {
 	// LAB 2: Fill this function in
-	struct PageInfo *page_to_alloc = page_free_list;
-	if(page_to_alloc!=NULL){
+	if(page_free_list){
+		struct PageInfo *page_to_alloc = page_free_list;
 		page_free_list=page_to_alloc->pp_link;
 		page_to_alloc->pp_link=NULL;
 
@@ -423,6 +431,7 @@ page_alloc(int alloc_flags)
 			memset(page2kva(page_to_alloc),'\0',PGSIZE);
 		else{
 			// __VAISHALI__what is to be done?
+			memset(page2kva(page_to_alloc),0,PGSIZE);
 		}
 		return page_to_alloc;
 	}
@@ -450,6 +459,10 @@ page_free(struct PageInfo *pp)
 	// LAB 2: Fill this function in
 	// Hint: You may want to panic if pp->pp_ref is nonzero or
 	// pp->pp_link is not NULL.
+	if(pp->pp_ref!=0 || pp->pp_link!=NULL)
+		panic("Problem while freeing page!");
+	pp->pp_link = page_free_list;
+	page_free_list = pp;
 }
 
 //
