@@ -218,8 +218,25 @@ boot_alloc(uint32_t n)
 	// to a multiple of PGSIZE.
 	//
 	// LAB 2: Your code here.
-
-	return NULL;
+        result = nextfree;
+	//cprintf("\nValue of nextfree %016x",nextfree);
+        if (n){
+		//cprintf("\nValues:first mmap %016x",KADDR(0x100000));
+		//cprintf("\nValues:last mmap %016x",KADDR(0xffdffff));
+		//cprintf("\n Value of KERNBASE %016x",KERNBASE);
+		int next_bits_to_allocate = ROUNDUP(n,PGSIZE);
+		//cprintf("\nNext bits to allocate %016x",next_bits_to_allocate);
+        	// __VAISHALI__allocate contiguous physical memory to hold n bytes
+		// __VAISHALI__check if next contiguous n bits are free or not - if yes, then
+                // __VAISHALI__allocate the bits otherwise panic
+		if( nextfree + next_bits_to_allocate > (char*)KADDR(0xffdffff)){
+			panic("\nNo memory available to allocate");
+		}else{
+			nextfree = nextfree + next_bits_to_allocate;
+			result = nextfree;
+		}
+	}
+	return result;
 }
 
 // Set up a four-level page table:
@@ -244,18 +261,21 @@ x64_vm_init(void)
 
 	//////////////////////////////////////////////////////////////////////
 	// create initial page directory.
-	panic("x64_vm_init: this function is not finished\n");
+	//panic("x64_vm_init: this function is not finished\n");
 	pml4 = boot_alloc(PGSIZE);
+	//cprintf("\nValue of pml4: %016x",pml4);
+	//panic("Stop! right there");
 	memset(pml4, 0, PGSIZE);
 	boot_pml4 = pml4;
 	boot_cr3 = PADDR(pml4);
-
-	//////////////////////////////////////////////////////////////////////
+	
+        //////////////////////////////////////////////////////////////////////
 	// Allocate an array of npages 'struct PageInfo's and store it in 'pages'.
 	// The kernel uses this array to keep track of physical pages: for
 	// each physical page, there is a corresponding struct PageInfo in this
 	// array.  'npages' is the number of physical pages in memory.
 	// LAB 2: Your code here.
+        pages = (struct PageInfo*) boot_alloc(sizeof(struct PageInfo)*npages);
 
 	//////////////////////////////////////////////////////////////////////
 	// Now that we've allocated the initial kernel data structures, we set
@@ -290,6 +310,24 @@ x64_vm_init(void)
 	//////////////////////////////////////////////////////////////////////
 	// Map all of physical memory at KERNBASE. We have detected the number
 	// of physical pages to be npages, i.e., the VA range [KERNBASE, npages*PGSIZE)
+	// should map to the PA range [0, npages*PGSIZE)
+	// Permissions: kernel RW, user NONE
+	// Your code goes here: 
+	check_boot_pml4e(boot_pml4);
+
+	//       the kernel overflows its stack, it will fault rather than
+	//       overwrite memory.  Known as a "guard page".
+	// Permissions: kernel RW, user NONE
+	// Your code goes here:
+
+	//////////////////////////////////////////////////////////////////////
+	// Map all of physical memory at KERNBASE. We have detected the number
+	// of physical pages to be npages, i.e., the VA range [KERNBASE, npages*PGSIZE)
+	// should map to the PA range [0, npages*PGSIZE)
+	// Permissions: kernel RW, user NONE
+	// Your code goes here: 
+	check_boot_pml4e(boot_pml4);
+
 	// should map to the PA range [0, npages*PGSIZE)
 	// Permissions: kernel RW, user NONE
 	// Your code goes here: 
@@ -345,13 +383,18 @@ page_init(void)
 	size_t i;
 	struct PageInfo* last = NULL;
 	for (i = 0; i < npages; i++) {
-		pages[i].pp_ref = 0;
+		// __VAISHALI_write 4096 in pa
 		pages[i].pp_link = NULL;
-		if(last)
+		pages[i].pp_ref = 0;
+		if(i>0 && (page2pa(&pages[i])>=PGSIZE && page2pa(&pages[i])<(PGSIZE+(npages_basemem*PGSIZE))) && page2pa(&pages[i])>=EXTPHYSMEM && last!=NULL){
+// point 4?
+			//to insert in the list which ones are free
+			pages[i].pp_ref++;
 			last->pp_link = &pages[i];
-		else
+			last = &pages[i];
+		}else{
 			page_free_list = &pages[i];
-		last = &pages[i];
+		}
 	}
 }
 
@@ -371,7 +414,19 @@ struct PageInfo *
 page_alloc(int alloc_flags)
 {
 	// LAB 2: Fill this function in
-	return 0;
+	struct PageInfo *page_to_alloc = page_free_list;
+	if(page_to_alloc!=NULL){
+		page_free_list=page_to_alloc->pp_link;
+		page_to_alloc->pp_link=NULL;
+
+		if(alloc_flags & ALLOC_ZERO)
+			memset(page2kva(page_to_alloc),'\0',PGSIZE);
+		else{
+			// __VAISHALI__what is to be done?
+		}
+		return page_to_alloc;
+	}
+	return NULL;
 }
 
 //
@@ -869,24 +924,6 @@ page_check(void)
 	// could happen in ref counts are handled sloppily in page_insert
 	assert(!page_alloc(0));
 	// check that pgdir_walk returns a pointer to the pte
-	pdpe = KADDR(PTE_ADDR(boot_pml4[PML4(PGSIZE)]));
-	pde = KADDR(PTE_ADDR(pdpe[PDPE(PGSIZE)]));
-	ptep = KADDR(PTE_ADDR(pde[PDX(PGSIZE)]));
-	assert(pml4e_walk(boot_pml4, (void*)PGSIZE, 0) == ptep+PTX(PGSIZE));
-
-	// should be able to change permissions too.
-	assert(page_insert(boot_pml4, pp3, (void*) PGSIZE, PTE_U) == 0);
-	assert(check_va2pa(boot_pml4, PGSIZE) == page2pa(pp3));
-	assert(pp3->pp_ref == 2);
-	assert(*pml4e_walk(boot_pml4, (void*) PGSIZE, 0) & PTE_U);
-	assert(boot_pml4[0] & PTE_U);
-
-
-	// should not be able to map at PTSIZE because need free page for page table
-	assert(page_insert(boot_pml4, pp0, (void*) PTSIZE, 0) < 0);
-
-	// insert pp1 at PGSIZE (replacing pp3)
-	assert(page_insert(boot_pml4, pp1, (void*) PGSIZE, 0) == 0);
 	assert(!(*pml4e_walk(boot_pml4, (void*) PGSIZE, 0) & PTE_U));
 
 	// should have pp1 at both 0 and PGSIZE
