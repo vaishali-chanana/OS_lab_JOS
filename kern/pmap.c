@@ -505,7 +505,7 @@ pml4e_walk(pml4e_t *pml4, const void *va, int create)
 	pdpe_t *pdpe=NULL;
 	pte_t *pte=NULL;
 	if(pml4_entry==NULL) {
-		if(create==0){
+		if(create==1){
 			struct PageInfo *pi = page_alloc(0);
 			if(pi){
 				pi->pp_ref++;
@@ -515,10 +515,13 @@ pml4e_walk(pml4e_t *pml4, const void *va, int create)
 					page_decref(pi);
 					return NULL;
 				}
+				// What about permissions?
+				*pml4_entry = (pml4e_t)pdpe;
+				*pml4_entry = *pml4_entry | PTE_USER;
 			}
 		}
 	}else{
-		pdpe = (pdpe_t*)*pml4_entry;
+		pdpe = (pdpe_t*)pml4_entry;
 		pte = pdpe_walk(pdpe,va,create);
 	}
 
@@ -533,7 +536,31 @@ pte_t *
 pdpe_walk(pdpe_t *pdp, const void *va, int create){
 
 	// LAB 2: Fill this function in
-	return NULL;
+	pdpe_t *pdp_entry;
+	pdp_entry = &pdp[PDPE(va)];
+	pde_t *pde = NULL;
+	pte_t *pte = NULL; 
+
+	if(pdp_entry==NULL){
+		if(create){
+			struct PageInfo *pi = page_alloc(0);
+			if(pi){
+				pi->pp_ref++;
+				pde = (pde_t*)page2pa(pi);
+				pte = pgdir_walk(pde,va,create);
+				if(!pte){
+					page_decref(pi);
+					return NULL;
+				}
+				*pdp_entry = (pdpe_t)pde;
+				*pdp_entry = *pdp_entry | PTE_USER;
+			}
+		}
+	}else{
+		pde = (pde_t*)*pdp_entry;
+		pte = pgdir_walk(pde,va,create);
+	}
+	return pte;
 }
 
 // Given 'pgdir', a pointer to a page directory, pgdir_walk returns
@@ -545,7 +572,29 @@ pte_t *
 pgdir_walk(pde_t *pgdir, const void *va, int create)
 {
 	// LAB 2: Fill this function in
-	return NULL;
+	pde_t *pd_entry;
+	pd_entry = &pgdir[PDX(va)];
+
+	pte_t *pte = NULL;
+	if(pd_entry==NULL){
+		if(create){
+			struct PageInfo *pi = page_alloc(0);
+			if(pi){
+				pi->pp_ref++;
+				pte = (pte_t*)page2pa(pi);
+				if(!pte){
+					page_decref(pi);
+					return NULL;
+				}
+				*pd_entry = (pte_t)pte;
+				*pd_entry = *pd_entry | PTE_USER;
+			}
+		}
+	}else{
+		pte = (pte_t*)*pd_entry;
+	}
+	
+	return pte;	
 }
 
 //
