@@ -426,7 +426,8 @@ page_alloc(int alloc_flags)
 			memset(page2kva(page_to_alloc),'\0',PGSIZE);
 		else{
 			// __VAISHALI__what is to be done?
-			memset(page2kva(page_to_alloc),0,PGSIZE);
+			//memset(page2kva(page_to_alloc),0,PGSIZE);
+			return NULL;
 		}
 		return page_to_alloc;
 	}
@@ -499,20 +500,29 @@ pte_t *
 pml4e_walk(pml4e_t *pml4, const void *va, int create)
 {
 	// LAB 2: Fill this function in
-/* if(pdpe does not exist or create==0)
-	retrun NUll
-   else{
-	allocate pdpe page with page_alloc
-	if dat fails
-		return NULL
-	else
-		new page ref count incr
-		page is clear
-		call pte_t* =pdpe_walk with pdpe_t pointer if return NULL
-			free the allocated page
+	pml4e_t *pml4_entry;
+	pml4_entry=&pml4[PML4(va)];
+	pdpe_t *pdpe=NULL;
+	pte_t *pte=NULL;
+	if(pml4_entry==NULL) {
+		if(create==0){
+			struct PageInfo *pi = page_alloc(0);
+			if(pi){
+				pi->pp_ref++;
+				pdpe = (pdpe_t*)page2pa(pi);
+				pte = pdpe_walk(pdpe,va,create);
+				if(!pte){
+					page_decref(pi);
+					return NULL;
+				}
+			}
+		}
+	}else{
+		pdpe = (pdpe_t*)*pml4_entry;
+		pte = pdpe_walk(pdpe,va,create);
+	}
 
-}*/
-	return NULL;
+	return pte;
 }
 
 // Given a pdpe i.e page directory pointer pdpe_walk returns the pointer to page table entry
