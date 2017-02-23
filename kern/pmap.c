@@ -219,7 +219,6 @@ boot_alloc(uint32_t n)
 	//
 	// LAB 2: Your code here.
         result = nextfree;
-	//cprintf("\nValue of nextfree %016x",nextfree);
         if (n){
 		int next_bits_to_allocate = ROUNDUP(n,PGSIZE);
 		//seen from logs, the last available address
@@ -227,7 +226,6 @@ boot_alloc(uint32_t n)
 			panic("\nNo memory available to allocate");
 		else
 			nextfree = nextfree + next_bits_to_allocate;
-	//		cprintf("Nextfreemem after call %016x",nextfree);
 	}
 	return result;
 }
@@ -256,10 +254,10 @@ x64_vm_init(void)
 	// create initial page directory.
 	//panic("x64_vm_init: this function is not finished\n");
 	pml4 = boot_alloc(PGSIZE);
-	//cprintf("\nValue of pml4: %016x",pml4);
-	//panic("Stop! right there");
 	memset(pml4, 0, PGSIZE);
 	boot_pml4 = pml4;
+	cprintf("\npml4 pointer points to %016x",boot_pml4);
+	cprintf("\npml4 pointer value %016x",*boot_pml4);
 	boot_cr3 = PADDR(pml4);
 	
         //////////////////////////////////////////////////////////////////////
@@ -374,16 +372,10 @@ page_init(void)
 	// NB: Remember to mark the memory used for initial boot page table,
 	// i.e (va>=BOOT_PAGE_TABLE_START && va < BOOT_PAGE_TABLE_END) as in-use (not free)
 	size_t i;
-	//struct PageInfo* last = NULL;
+	struct PageInfo* last = NULL;
 	for (i = 0; i < npages; i++) {
 		pages[i].pp_link = NULL;
 		pages[i].pp_ref = 0;
-		if(i<10){
-		cprintf("\nFirst pages %016x and value %016x and pa %016x",&pages[i],pages[i],page2pa(&pages[i]));
-		}
-		else if(i>(npages-10)){
-			cprintf("\nAddress of page %016x and value %016x and pa %016x" ,&pages[i],pages[i],page2pa(&pages[i]));
-		}
 /*************************
 What is free? 
 -page 1 till iophysmem
@@ -397,11 +389,14 @@ page2pa() would give result?
 where is bootstrap code?
 *********************/
 		int iolock_n_used = npages_basemem+((PADDR(boot_alloc(0))-IOPHYSMEM)/PGSIZE);
-		if(i==0 || (i>=npages_basemem && i<iolock_n_used))
-			pages[i].pp_ref = 1;
-		else {
-			pages[i].pp_link = page_free_list;
-			page_free_list = &pages[i];
+		if(i==0 || (i>=npages_basemem && i<=iolock_n_used))
+			pages[i].pp_ref=1;
+		else{
+			if(last)
+				last->pp_link = &pages[i];
+			else
+				page_free_list = &pages[i];
+			last = &pages[i];
 		}
 	}
 }
@@ -504,6 +499,19 @@ pte_t *
 pml4e_walk(pml4e_t *pml4, const void *va, int create)
 {
 	// LAB 2: Fill this function in
+/* if(pdpe does not exist or create==0)
+	retrun NUll
+   else{
+	allocate pdpe page with page_alloc
+	if dat fails
+		return NULL
+	else
+		new page ref count incr
+		page is clear
+		call pte_t* =pdpe_walk with pdpe_t pointer if return NULL
+			free the allocated page
+
+}*/
 	return NULL;
 }
 
@@ -717,6 +725,11 @@ check_page_alloc(void)
 	for (pp0 = page_free_list, nfree = 0; pp0; pp0 = pp0->pp_link) {
 		// check that we didn't corrupt the free list itself
 		assert(pp0 >= pages);
+		if(pp0> pages+npages){
+		cprintf("\n pp0 %016x",pp0);
+		cprintf("\n pages %016x",pages);
+		cprintf("\n pages+npages %016x",pages+npages);
+		}
 		assert(pp0 < pages + npages);
 
 		// check a few pages that shouldn't be on the free list
