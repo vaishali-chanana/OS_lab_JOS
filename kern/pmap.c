@@ -274,6 +274,7 @@ x64_vm_init(void)
 	// memory management will go through the page_* functions. In
 	// particular, we can now map memory using boot_map_region or page_insert
 	page_init();
+page_check();
 
 	//////////////////////////////////////////////////////////////////////
 	// Now we set up virtual memory 
@@ -424,11 +425,11 @@ page_alloc(int alloc_flags)
 
 		if(alloc_flags & ALLOC_ZERO)
 			memset(page2kva(page_to_alloc),'\0',PGSIZE);
-		else{
+		/*else{
 			// __VAISHALI__what is to be done?
-			//memset(page2kva(page_to_alloc),0,PGSIZE);
-			return NULL;
-		}
+			memset(page2kva(page_to_alloc),0,PGSIZE);
+			//return NULL;
+		}*/
 		return page_to_alloc;
 	}
 	return NULL;
@@ -459,6 +460,7 @@ page_free(struct PageInfo *pp)
 		panic("Problem while freeing page!");
 	pp->pp_link = page_free_list;
 	page_free_list = pp;
+cprintf("\npage free list after deleting %016x",page_free_list);
 }
 
 //
@@ -468,6 +470,7 @@ page_free(struct PageInfo *pp)
 void
 page_decref(struct PageInfo* pp)
 {
+cprintf("\ncame to free pp %016x",pp);
 	if (--pp->pp_ref == 0)
 		page_free(pp);
 }
@@ -501,18 +504,23 @@ pml4e_walk(pml4e_t *pml4, const void *va, int create)
 {
 	// LAB 2: Fill this function in
 	pml4e_t *pml4_entry;
-	pml4_entry=&pml4[PML4(va)];
+	pml4_entry = &pml4[PML4(va)];
 	pdpe_t *pdpe=NULL;
 	pte_t *pte=NULL;
-	if(pml4_entry==NULL) {
-		if(create==1){
+	if(pml4_entry==NULL || *pml4_entry==0) {
+cprintf("\npml4e walk pml4 entry null");
+		if(create){
+cprintf("\npml4e walk create 1");
 			struct PageInfo *pi = page_alloc(0);
 			if(pi){
 				pi->pp_ref++;
+cprintf("\nvalue of pi inside pml4e_walk %016x",pi);
 				pdpe = (pdpe_t*)page2pa(pi);
 				pte = pdpe_walk(pdpe,va,create);
+cprintf("\nvalue of pte inside pml4e_walk %016x",pte);
 				if(!pte){
 					page_decref(pi);
+cprintf("\npage free list after pml4e_walk %016x",page_free_list);
 					return NULL;
 				}
 				// What about permissions?
@@ -521,10 +529,10 @@ pml4e_walk(pml4e_t *pml4, const void *va, int create)
 			}
 		}
 	}else{
+cprintf("\npml4e_walk yes pml4e entry");
 		pdpe = (pdpe_t*)pml4_entry;
 		pte = pdpe_walk(pdpe,va,create);
 	}
-
 	return pte;
 }
 
@@ -541,15 +549,20 @@ pdpe_walk(pdpe_t *pdp, const void *va, int create){
 	pde_t *pde = NULL;
 	pte_t *pte = NULL; 
 
-	if(pdp_entry==NULL){
+	if(pdp_entry==NULL || *pdp_entry==0){
+cprintf("\npdpe_walk no pdpe entry");
 		if(create){
+cprintf("\npdpe walk create 1");
 			struct PageInfo *pi = page_alloc(0);
 			if(pi){
+cprintf("\nvalue of pi inside pdpe_walk %016x",pi);
 				pi->pp_ref++;
 				pde = (pde_t*)page2pa(pi);
 				pte = pgdir_walk(pde,va,create);
+cprintf("\n value of pte after pdpe_walk %016x",pte);
 				if(!pte){
 					page_decref(pi);
+cprintf("\n page free list after padpe_walk %016x",page_free_list);
 					return NULL;
 				}
 				*pdp_entry = (pdpe_t)pde;
@@ -558,6 +571,7 @@ pdpe_walk(pdpe_t *pdp, const void *va, int create){
 		}
 	}else{
 		pde = (pde_t*)*pdp_entry;
+cprintf("\npdpe entry yes there already");
 		pte = pgdir_walk(pde,va,create);
 	}
 	return pte;
@@ -576,25 +590,32 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 	pd_entry = &pgdir[PDX(va)];
 
 	pte_t *pte = NULL;
-	if(pd_entry==NULL){
+	pte_t *pt = NULL;
+	if(pd_entry==NULL || *pd_entry==0){
 		if(create){
 			struct PageInfo *pi = page_alloc(0);
 			if(pi){
+cprintf("\nstate of free list %016x",page_free_list);
+cprintf("\n value of pi inside pgdir_walk %016x",pi);
 				pi->pp_ref++;
 				pte = (pte_t*)page2pa(pi);
+cprintf("\n value of pte after pgdir_walk %016x",pte);
 				if(!pte){
 					page_decref(pi);
+cprintf("\n value of free list after pgdir_walk %016x",page_free_list);
 					return NULL;
 				}
 				*pd_entry = (pte_t)pte;
 				*pd_entry = *pd_entry | PTE_USER;
 			}
 		}
-	}else{
-		pte = (pte_t*)*pd_entry;
 	}
+	pte = (pte_t*)PTE_ADDR(*pd_entry);
+	pt = &pte[PTX(va)];
+		
 	
-	return pte;	
+cprintf("\nFinal pte returning from %016x",pt);
+	return (pte_t*)KADDR((physaddr_t)pt);	
 }
 
 //
@@ -611,6 +632,17 @@ static void
 boot_map_region(pml4e_t *pml4, uintptr_t la, size_t size, physaddr_t pa, int perm)
 {
 	// LAB 2: Fill this function in
+	size_t i;
+	for(i = 0 ;i < size; i = i + PGSIZE){
+		pte_t* pte = pml4e_walk(pml4,(void*) (la + i), 1);
+		if(pte){
+			//pte_t *pt_entry;
+			//get pt entry and point pt_entry to physical page
+			//pt_entry = &pte[PTX(la)];
+			*pte = PTE_ADDR(pa + i);
+			*pte = *pte | perm | PTE_P;
+		}
+}	
 }
 
 //
@@ -642,7 +674,30 @@ int
 page_insert(pml4e_t *pml4e, struct PageInfo *pp, void *va, int perm)
 {
 	// Fill this function in
-	return 0;
+/*
+using pml4e and va get pte -
+if pp already present at that pte - remove page & invlidate tlb for va 
+map pte to pp
+pp->pp_ref + 1 what abt pp->pp_link??
+
+*/
+cprintf("\nfree list status before walk %016x",page_free_list);
+	pte_t* pte = pml4e_walk(pml4e,(void*)va,1);
+cprintf("\n pp inside page_insert %016x",pp);
+cprintf("\nstatus of free list insert insert after walk %016x",page_free_list);
+	if(pte){
+cprintf("\nvalue of pte %016x",pte);
+cprintf("pte is not null");
+		if(PTE_ADDR(pte)){
+			page_remove(pml4e,va);
+			tlb_invalidate(pml4e,va);
+		}
+		*pte = page2pa(pp);
+		*pte = *pte | perm | PTE_P;
+		pp->pp_ref++;
+		return 0;
+	}
+	return -E_NO_MEM;
 }
 
 //
@@ -660,6 +715,12 @@ struct PageInfo *
 page_lookup(pml4e_t *pml4e, void *va, pte_t **pte_store)
 {
 	// Fill this function in
+	pte_t *pte = pml4e_walk(pml4e,va,0);
+	if(pte && PTE_ADDR(pte)){
+		if(**pte_store!=0)
+			pte_store = &pte;
+		return pa2page(PTE_ADDR(pte));
+	}
 	return NULL;
 }
 
@@ -682,6 +743,13 @@ void
 page_remove(pml4e_t *pml4e, void *va)
 {
 	// Fill this function in
+	pte_t **pte_store = 0;
+	struct PageInfo* pi = page_lookup(pml4e,va,pte_store);
+	if(pi){
+		page_decref(pi);
+		//set pg table entry to 0; HOw?
+		tlb_invalidate(pml4e,va);
+	}
 }
 
 //
@@ -980,6 +1048,14 @@ page_check(void)
 
 	// free pp0 and try again: pp0 should be used for page table
 	page_free(pp0);
+
+struct PageInfo* love;
+for(love = page_free_list;love!=NULL;love = love->pp_link){
+	cprintf("\ninside free page list %016x",love);
+}
+
+cprintf("\nfree memory contains %016x",page_free_list);
+cprintf("\npp1 contains %016x",pp1);
 	assert(page_insert(boot_pml4, pp1, 0x0, 0) < 0);
 	page_free(pp2);
 	page_free(pp3);
@@ -987,12 +1063,16 @@ page_check(void)
 	//cprintf("pp0 ref count = %d\n",pp0->pp_ref);
 	//cprintf("pp2 ref count = %d\n",pp2->pp_ref);
 	assert(page_insert(boot_pml4, pp1, 0x0, 0) == 0);
+cprintf("\nTriple fault maybe");
 	assert((PTE_ADDR(boot_pml4[0]) == page2pa(pp0) || PTE_ADDR(boot_pml4[0]) == page2pa(pp2) || PTE_ADDR(boot_pml4[0]) == page2pa(pp3) ));
+
+cprintf("\nStart he");
 	assert(check_va2pa(boot_pml4, 0x0) == page2pa(pp1));
 	assert(pp1->pp_ref == 1);
 	assert(pp0->pp_ref == 1);
 	assert(pp2->pp_ref == 1);
 	//should be able to map pp3 at PGSIZE because pp0 is already allocated for page table
+cprintf("\nStart here");
 	assert(page_insert(boot_pml4, pp3, (void*) PGSIZE, 0) == 0);
 	assert(check_va2pa(boot_pml4, PGSIZE) == page2pa(pp3));
 	assert(pp3->pp_ref == 2);
