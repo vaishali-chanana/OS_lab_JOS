@@ -241,7 +241,7 @@ x64_vm_init(void)
 	int r;
 	struct Env *env;
 
-	o();
+	i386_detect_memory();
 
 	//////////////////////////////////////////////////////////////////////
 	// create initial page directory.
