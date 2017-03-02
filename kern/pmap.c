@@ -222,7 +222,7 @@ boot_alloc(uint32_t n)
         if (n){
 		int next_bits_to_allocate = ROUNDUP(n,PGSIZE);
 		//seen from logs, the last available address
-		if( nextfree + next_bits_to_allocate > (char*) KADDR(0xffdfff))
+		if( nextfree + next_bits_to_allocate >= (char*) KADDR(0xffdfff))
 			panic("\nNo memory available to allocate");
 		else
 			nextfree = nextfree + next_bits_to_allocate;
@@ -272,7 +272,7 @@ x64_vm_init(void)
 	// memory management will go through the page_* functions. In
 	// particular, we can now map memory using boot_map_region or page_insert
 	page_init();
-//check_page_alloc();
+check_page_alloc();
 //check_page_free_list(1);
 //panic("BAZINGA");
 //page_check();
@@ -286,7 +286,7 @@ x64_vm_init(void)
 	//      (ie. perm = PTE_U | PTE_P)
 	//    - pages itself -- kernel RW, user NONE
 	// LAB 2: Your code here.
-	boot_map_region(boot_pml4,UPAGES,sizeof(struct PageInfo)*npages,PADDR(pages),PTE_U | PTE_P);
+	boot_map_region(boot_pml4,UPAGES,ROUNDUP(sizeof(struct PageInfo)*npages,PGSIZE),PADDR(pages),PTE_U | PTE_P);
 
 	//////////////////////////////////////////////////////////////////////
 	// Use the physical memory that 'bootstack' refers to as the kernel
@@ -299,19 +299,18 @@ x64_vm_init(void)
 	//       overwrite memory.  Known as a "guard page".
 	// Permissions: kernel RW, user NONE
 	// Your code goes here:
-	boot_map_region(boot_pml4,KSTACKTOP-KSTKSIZE,KSTKSIZE,PADDR(bootstack),PTE_U | PTE_P);
-
+	boot_map_region(boot_pml4,KSTACKTOP-KSTKSIZE,KSTKSIZE,PADDR(bootstack),PTE_W | PTE_P);
+//panic("Wait");
 	//////////////////////////////////////////////////////////////////////
 	// Map all of physical memory at KERNBASE. We have detected the number
 	// of physical pages to be npages, i.e., the VA range [KERNBASE, npages*PGSIZE)
 	// should map to the PA range [0, npages*PGSIZE)
 	// Permissions: kernel RW, user NONE
 	// Your code goes here: 
-	boot_map_region(boot_pml4, KERNBASE, npages*PGSIZE, 0, PTE_U | PTE_P);
+	boot_map_region(boot_pml4, KERNBASE, npages*PGSIZE, 0, PTE_W | PTE_P);
 	check_boot_pml4e(boot_pml4);
 	// install the page table
 	lcr3(boot_cr3);
-
 	// Check that the page table has been set up correctly.
 	check_page_free_list(1);
 	check_page_alloc();
@@ -362,10 +361,15 @@ page_init(void)
 		pages[i].pp_link = NULL;
 		pages[i].pp_ref = 0;
 
-		int iolock_n_used = npages_basemem+((PADDR(boot_alloc(0))-IOPHYSMEM)/PGSIZE);
-		if(i==0 || (i>=npages_basemem && i<=iolock_n_used))
-			pages[i].pp_ref=1;
-		else{
+		if(i==0){
+			pages[i].pp_ref = 1;
+		}else if(page2pa(&pages[i]) >= IOPHYSMEM && page2pa(&pages[i]) < EXTPHYSMEM){
+			pages[i].pp_ref = 1;
+		}/*else if((uintptr_t)page2kva(&pages[i]) >= BOOT_PAGE_TABLE_START && (uintptr_t)page2kva(&pages[i]) < BOOT_PAGE_TABLE_END ){
+			pages[i].pp_ref = 1;
+		}*/else if(page2pa(&pages[i])<PADDR(boot_alloc(0))){
+			pages[i].pp_ref = 1;
+		}else{
 			if(last)
 				last->pp_link = &pages[i];
 			else
@@ -474,33 +478,36 @@ pte_t *
 pml4e_walk(pml4e_t *pml4, const void *va, int create)
 {
 	// LAB 2: Fill this function in
-	physaddr_t *pml4_entry;
-	pml4_entry = (physaddr_t*)PADDR(&pml4[PML4(va)]);
+	if(pml4 == NULL)
+		return NULL;
+	pml4e_t pml4_entry;
+	pml4_entry = (pml4e_t)pml4[PML4(va)];
+	pml4e_t pml4_entry_va = (pml4e_t)KADDR(pml4_entry);
 	pdpe_t *pdpe=NULL;
 	pte_t *pte=NULL;
-	if(!(*pml4_entry & PTE_P)) {
+	if(!(pml4_entry & PTE_P)) {
 		if(create){
 			struct PageInfo *pi = page_alloc(0);
 			if(pi){
 				pi->pp_ref++;
-				pdpe = (pdpe_t*)page2pa(pi);
+				pml4[PML4(va)] = page2pa(pi);
+				pdpe = (pdpe_t*)KADDR(pml4[PML4(va)]);
+				pml4_entry_va = (pml4e_t)KADDR(pml4[PML4(va)]);
+				pml4[PML4(va)] = pml4[PML4(va)] | PTE_P | PTE_W;
+				//pml4_entry_va = (pml4e_t)KADDR(pml4[PML4(va)]); 
 				pte = pdpe_walk(pdpe,va,create);
 				if(!pte){
 					page_decref(pi);
+					pml4[PML4(va)]=0;
 					return NULL;
 				}
-				// What about permissions?
-				*pml4_entry = (pml4e_t)pdpe;
-				*pml4_entry = *pml4_entry | PTE_USER;
 			}
 		}
 	}else{
-		pdpe = (pdpe_t*)KADDR(*pml4_entry & ~0xFFF);
+		pdpe = (pdpe_t*)KADDR(PTE_ADDR(pml4_entry));
 		pte = pdpe_walk(pdpe,va,create);
 	}
 
-	//return (pte_t*)KADDR(pte);
-	
 	return pte;
 }
 
@@ -512,27 +519,30 @@ pte_t *
 pdpe_walk(pdpe_t *pdp, const void *va, int create){
 
 	// LAB 2: Fill this function in
-	physaddr_t *pdp_entry;
-	pdp_entry = (physaddr_t*)&pdp[PDPE(va)];
+	if(pdp == NULL)
+		return NULL;
+	pdpe_t pdp_entry;
+	pdp_entry = (pdpe_t)pdp[PDPE(va)];
 	pde_t *pde = NULL;
 	pte_t *pte = NULL; 
-	if(!(*pdp_entry & PTE_P)){
+	if(!(pdp_entry & PTE_P)){
 		if(create){
 			struct PageInfo *pi = page_alloc(0);
 			if(pi){
 				pi->pp_ref++;
-				pde = (pde_t*)page2pa(pi);
+				pdp[PDPE(va)] = (pdpe_t)page2pa(pi);
+				pde = (pde_t*)KADDR(pdp[PDPE(va)]);
+				pdp[PDPE(va)] = pdp[PDPE(va)] | PTE_P | PTE_W;
 				pte = pgdir_walk(pde,va,create);
 				if(!pte){
 					page_decref(pi);
+					pdp[PDPE(va)] = 0;
 					return NULL;
 				}
-				*pdp_entry = (pdpe_t)pde;
-				*pdp_entry = *pdp_entry | PTE_USER;
 			}
 		}
 	}else{
-		pde = (pde_t*)KADDR(*pdp_entry & ~0xFFF) ;
+		pde = (pde_t*)KADDR(PTE_ADDR(pdp_entry)) ;
 		pte = pgdir_walk(pde,va,create);
 	}
 	return pte;
@@ -547,30 +557,32 @@ pte_t *
 pgdir_walk(pde_t *pgdir, const void *va, int create)
 {
 	// LAB 2: Fill this function in
-	physaddr_t *pd_entry;
-	pd_entry = (physaddr_t*)&pgdir[PDX(va)];
+	pde_t pd_entry;
+	pd_entry = (pde_t)pgdir[PDX(va)];
 
 	pte_t *pte = NULL;
 	pte_t *pt = NULL;
-	if(!(*pd_entry & PTE_P)){
+	if(!(pd_entry & PTE_P)){
 		if(create){
 			struct PageInfo *pi = page_alloc(0);
 			if(pi){
 				pi->pp_ref++;
-				pte = (pte_t*)page2pa(pi);
+				pgdir[PDX(va)] = (pde_t)page2pa(pi);
+				pte = (pte_t*)KADDR(pgdir[PDX(va)]);
+				pgdir[PDX(va)] =  pgdir[PDX(va)] | PTE_P | PTE_W;
+				pt = &pte[PTX(va)];
 				if(!pte){
 					page_decref(pi);
+					pgdir[PDX(va)] = 0;
 					return NULL;
 				}
-				*pd_entry = (pte_t)pte;
-				*pd_entry = *pd_entry | PTE_USER;
-				pte = (pte_t*)KADDR((pte_t)pte);
 			}
 		}
-	}else
-		pte = (pte_t*)KADDR(*pd_entry & ~0xFFF);
-	pt = (pte_t*)(&pte[PTX(va)]);
-	return pt;	
+	}else{
+		pte = (pte_t*)KADDR(PTE_ADDR(pd_entry));
+		pt = &pte[PTX(va)];
+	}
+	return pt;
 }
 
 //
@@ -597,7 +609,7 @@ boot_map_region(pml4e_t *pml4, uintptr_t la, size_t size, physaddr_t pa, int per
 			*pte = pa + i;
 			*pte = *pte | perm | PTE_P;
 		}
-}	
+	}	
 }
 
 //
@@ -631,7 +643,7 @@ page_insert(pml4e_t *pml4e, struct PageInfo *pp, void *va, int perm)
 	// Fill this function in
 	pte_t* pte = pml4e_walk(pml4e,(void*)va,1);
 	if(pte){
-		if(PTE_ADDR(*pte)==page2pa(pp)){
+		if(PTE_ADDR(*pte)==(pte_t)page2pa(pp)){
 			*pte = *pte | perm | PTE_P;
 			return 0; 
 		}
@@ -639,7 +651,7 @@ page_insert(pml4e_t *pml4e, struct PageInfo *pp, void *va, int perm)
 			page_remove(pml4e,va);
 			tlb_invalidate(pml4e,va);
 		}
-		*pte =page2pa(pp);
+		*pte =(pte_t)page2pa(pp);
 		*pte = *pte | perm | PTE_P;
 		pp->pp_ref++;
 		return 0;
@@ -668,7 +680,7 @@ page_lookup(pml4e_t *pml4e, void *va, pte_t **pte_store)
 	if(pte){
 		if(pte_store)
 			*pte_store = pte;
-		return pa2page((physaddr_t)(PTE_ADDR(*pte)));
+		return pa2page(PTE_ADDR(*pte));
 	}
 	return NULL;
 }
@@ -882,7 +894,6 @@ check_boot_pml4e(pml4e_t *pml4e)
 	// check pages array
 	n = ROUNDUP(npages*sizeof(struct PageInfo), PGSIZE);
 	for (i = 0; i < n; i += PGSIZE) {
-		// cprintf("%x %x %x\n",i,check_va2pa(pml4e, UPAGES + i), PADDR(pages) + i);
 		assert(check_va2pa(pml4e, UPAGES + i) == PADDR(pages) + i);
 	}
 
@@ -931,25 +942,19 @@ check_va2pa(pml4e_t *pml4e, uintptr_t va)
 	pte_t *pte;
 	pdpe_t *pdpe;
 	pde_t *pde;
-	// cprintf("%x", va);
 	pml4e = &pml4e[PML4(va)];
-	// cprintf(" %x %x " , PML4(va), *pml4e);
 	if(!(*pml4e & PTE_P))
 		return ~0;
 	pdpe = (pdpe_t *) KADDR(PTE_ADDR(*pml4e));
-	// cprintf(" %x %x " , pdpe, *pdpe);
 	if (!(pdpe[PDPE(va)] & PTE_P))
 		return ~0;
 	pde = (pde_t *) KADDR(PTE_ADDR(pdpe[PDPE(va)]));
-	// cprintf(" %x %x " , pde, *pde);
 	pde = &pde[PDX(va)];
 	if (!(*pde & PTE_P))
 		return ~0;
 	pte = (pte_t*) KADDR(PTE_ADDR(*pde));
-	// cprintf(" %x %x " , pte, *pte);
 	if (!(pte[PTX(va)] & PTE_P))
 		return ~0;
-	// cprintf(" %x %x\n" , PTX(va),  PTE_ADDR(pte[PTX(va)]));
 	return PTE_ADDR(pte[PTX(va)]);
 }
 
@@ -997,9 +1002,6 @@ page_check(void)
 	assert(page_insert(boot_pml4, pp1, 0x0, 0) < 0);
 	page_free(pp2);
 	page_free(pp3);
-	//cprintf("pp1 ref count = %d\n",pp1->pp_ref);
-	//cprintf("pp0 ref count = %d\n",pp0->pp_ref);
-	//cprintf("pp2 ref count = %d\n",pp2->pp_ref);
 	assert(page_insert(boot_pml4, pp1, 0x0, 0) == 0);
 	assert((PTE_ADDR(boot_pml4[0]) == page2pa(pp0) || PTE_ADDR(boot_pml4[0]) == page2pa(pp2) || PTE_ADDR(boot_pml4[0]) == page2pa(pp3) ));
 
