@@ -31,6 +31,25 @@ static struct Trapframe *last_tf;
 struct Gatedesc idt[256] = { { 0 } };
 struct Pseudodesc idt_pd = {0, 0};
 
+extern void XTPTR_DIVIDE();
+extern void XTPTR_DEBUG();
+extern void XTPTR_NMI();
+extern void XTPTR_BRKPNT();
+extern void XTPTR_OFLOW();
+extern void XTPTR_BOUND();
+extern void XTPTR_ILLOP();
+extern void XTPTR_DEVICE();
+extern void XTPTR_DBLFLT();
+extern void XTPTR_TSS();
+extern void XTPTR_SEGNP();
+extern void XTPTR_STACK();
+extern void XTPTR_GPFLT();
+extern void XTPTR_PGFLT();
+extern void XTPTR_FPERR();
+extern void XTPTR_ALIGN();
+extern void XTPTR_MCHK();
+extern void XTPTR_SIMDERR();
+extern void XTPTR_SYSCALL();
 
 static const char *trapname(int trapno)
 {
@@ -73,6 +92,29 @@ trap_init(void)
 	extern struct Segdesc gdt[];
 
 	// LAB 3: Your code here.
+	
+	SETGATE(idt[0],0,GD_KT,XTPTR_DIVIDE,0);
+	SETGATE(idt[1],0,GD_KT,XTPTR_DEBUG,0);
+	SETGATE(idt[2],0,GD_KT,XTPTR_NMI,0);
+	SETGATE(idt[3],0,GD_KT,XTPTR_BRKPNT,3);
+	SETGATE(idt[4],0,GD_KT,XTPTR_OFLOW,0);
+	SETGATE(idt[5],0,GD_KT,XTPTR_BOUND,0);
+	SETGATE(idt[6],0,GD_KT,XTPTR_ILLOP,0);
+	SETGATE(idt[7],0,GD_KT,XTPTR_DEVICE,0);
+	SETGATE(idt[8],0,GD_KT,XTPTR_DBLFLT,0);
+	SETGATE(idt[10],0,GD_KT,XTPTR_TSS,0);
+	SETGATE(idt[11],0,GD_KT,XTPTR_SEGNP,0);
+	SETGATE(idt[12],0,GD_KT,XTPTR_STACK,0);
+	SETGATE(idt[13],0,GD_KT,XTPTR_GPFLT,0);
+	SETGATE(idt[14],0,GD_KT,XTPTR_PGFLT,0);
+	SETGATE(idt[16],0,GD_KT,XTPTR_FPERR,0);
+	SETGATE(idt[17],0,GD_KT,XTPTR_ALIGN,0);
+	SETGATE(idt[18],0,GD_KT,XTPTR_MCHK,0);
+	SETGATE(idt[19],0,GD_KT,XTPTR_SIMDERR,0);
+
+	//for system call
+	SETGATE(idt[48],0,GD_KT,XTPTR_SYSCALL,3);
+
 	idt_pd.pd_lim = sizeof(idt) - 1;
 	idt_pd.pd_base = (uint64_t)idt;
 	// Per-CPU setup
@@ -194,6 +236,23 @@ trap_dispatch(struct Trapframe *tf)
 	// interrupt using lapic_eoi() before calling the scheduler!
 	// LAB 4: Your code here.
 
+	if(tf->tf_trapno==14){
+		page_fault_handler(tf);
+		return;
+	}
+	if(tf->tf_trapno==3){
+		monitor(tf);
+		return;
+	}
+	if(tf->tf_trapno==48){
+		tf->tf_regs.reg_rax = syscall(tf->tf_regs.reg_rax,
+			tf->tf_regs.reg_rdx,
+			tf->tf_regs.reg_rcx,
+			tf->tf_regs.reg_rbx,
+			tf->tf_regs.reg_rdi,
+			tf->tf_regs.reg_rsi);
+		return;
+	}
 	// Unexpected trap: The user process or the kernel has a bug.
 	print_trapframe(tf);
 	if (tf->tf_cs == GD_KT)
@@ -251,7 +310,6 @@ trap(struct Trapframe *tf)
 	// Record that tf is the last real trapframe so
 	// print_trapframe can print some additional information.
 	last_tf = tf;
-
 	// Dispatch based on what type of trap occurred
 	trap_dispatch(tf);
 
@@ -275,6 +333,8 @@ page_fault_handler(struct Trapframe *tf)
 
 	// Handle kernel-mode page faults.
 	// LAB 3: Your code here.
+	if((tf->tf_cs & 3) == 0)
+		panic("page fault happens in kernel mode");	
 
 	// We've already handled kernel-mode exceptions, so if we get here,
 	// the page fault happened in user mode.

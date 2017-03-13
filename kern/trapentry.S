@@ -50,7 +50,26 @@
    Find the PUSHA, POPA macros in kern/macro.h. Since amd64 doesn't support
    pusha, popa so you will find these macros handy.
  */
-
+	TRAPHANDLER_NOEC(XTPTR_DIVIDE,0)
+	TRAPHANDLER_NOEC(XTPTR_DEBUG,1)
+	TRAPHANDLER_NOEC(XTPTR_NMI,2)
+	TRAPHANDLER_NOEC(XTPTR_BRKPNT,3)
+	TRAPHANDLER_NOEC(XTPTR_OFLOW,4)
+	TRAPHANDLER_NOEC(XTPTR_BOUND,5)
+	TRAPHANDLER_NOEC(XTPTR_ILLOP,6)
+	TRAPHANDLER_NOEC(XTPTR_DEVICE,7)
+	TRAPHANDLER(XTPTR_DBLFLT,8)
+	TRAPHANDLER(XTPTR_TSS,10)
+	TRAPHANDLER(XTPTR_SEGNP,11)
+	TRAPHANDLER(XTPTR_STACK,12)
+	TRAPHANDLER(XTPTR_GPFLT,13)
+	TRAPHANDLER(XTPTR_PGFLT,14)
+	TRAPHANDLER_NOEC(XTPTR_FPERR,16)
+	TRAPHANDLER(XTPTR_ALIGN,17)
+	TRAPHANDLER_NOEC(XTPTR_MCHK,18)
+	TRAPHANDLER_NOEC(XTPTR_SIMDERR,19)
+	
+	TRAPHANDLER_NOEC(XTPTR_SYSCALL,48)
 
 /*
  * Lab 3: Your code here for _alltraps
@@ -59,3 +78,23 @@
  *       for how to pass a pointer to the trapframe.
  */
 
+_alltraps:
+	
+	sub $16, %rsp
+	movw %ds, 8(%rsp)
+	movw %es, 0(%rsp)
+
+	PUSHA
+	
+	movw $GD_KD, %rax
+	movw %rax, %ds
+	movw %rax, %es
+	movq %rsp, %rdi
+	call trap
+
+	POPA_
+
+	movw 0(%rsp), %es
+	movw 8(%rsp), %ds
+	add $16, %rsp
+	iret
