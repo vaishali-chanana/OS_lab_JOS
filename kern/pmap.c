@@ -245,6 +245,7 @@ boot_alloc(uint32_t n)
 void
 x64_vm_init(void)
 {
+	pml4e_t* pml4;
 	uint32_t cr0;
 	uint64_t n;
 	int r;
@@ -254,10 +255,10 @@ x64_vm_init(void)
 
 	//////////////////////////////////////////////////////////////////////
 	// create initial page directory.
-	panic("x64_vm_init: this function is not finished\n");
-	boot_pml4 = boot_alloc(PGSIZE);
-	memset(boot_pml4, 0, PGSIZE);
-	boot_cr3 = PADDR(boot_pml4);
+//	panic("x64_vm_init: this function is not finished\n");
+//	boot_pml4 = boot_alloc(PGSIZE);
+//	memset(boot_pml4, 0, PGSIZE);
+//	boot_cr3 = PADDR(boot_pml4);
 	//panic("x64_vm_init: this function is not finished\n");
 	pml4 = boot_alloc(PGSIZE);
 	memset(pml4, 0, PGSIZE);
@@ -360,6 +361,11 @@ mem_init_mp(void)
 	//     Permissions: kernel RW, user NONE
 	//
 	// LAB 4: Your code here.
+	size_t i;
+	for (i=0; i<NCPU ; i++){
+		uintptr_t kstacktop_i = KSTACKTOP - i *(KSTKSIZE + KSTKGAP);
+		boot_map_region(boot_pml4,kstacktop_i - KSTKSIZE, KSTKSIZE, PADDR(percpu_kstacks[i]), PTE_W | PTE_P);
+	}
 }
 
 // --------------------------------------------------------------
@@ -415,6 +421,8 @@ page_init(void)
 		}else if((uintptr_t)page2kva(&pages[i]) >= BOOT_PAGE_TABLE_START && (uintptr_t)page2kva(&pages[i]) < BOOT_PAGE_TABLE_END ){
 			pages[i].pp_ref = 1;
 		}else if(page2pa(&pages[i])<PADDR(boot_alloc(0))){
+			pages[i].pp_ref = 1;
+		}else if(page2pa(&pages[i]) == MPENTRY_PADDR){
 			pages[i].pp_ref = 1;
 		}else{
 			if(last)
@@ -805,7 +813,14 @@ mmio_map_region(physaddr_t pa, size_t size)
 	//
 	// Hint: The staff solution uses boot_map_region.
 	// LAB 4: Your code here.
-	panic("mmio_map_region not implemented");
+//	panic("mmio_map_region not implemented");
+	uintptr_t size_round = ROUNDUP(size, PGSIZE);
+	if(base + size_round >= MMIOLIM)
+		panic("Cannot be mapped, mmio out of bound!!");
+	boot_map_region(boot_pml4, base, size_round, pa, PTE_W | PTE_PCD | PTE_PWT | PTE_P);
+	uintptr_t save_base = base;
+	base = base + size_round;
+	return (void*)save_base;
 }
 
 static uintptr_t user_mem_check_addr;

@@ -599,6 +599,7 @@ env_run(struct Env *e)
 	e->env_status = ENV_RUNNING;
 	e->env_runs++;
 	lcr3(e->env_cr3);
+	unlock_kernel();
 	env_pop_tf(&e->env_tf);	
 	//	panic("env_run not yet implemented");
 }
