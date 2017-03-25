@@ -31,7 +31,7 @@ sched_yield(void)
 
 	// LAB 4: Your code here.
 	idle = thiscpu->cpu_env;
-	size_t env_num = 0;
+	int env_num = 0;
 	//check if the current env is null
 	//this has to be checked because kern init does not call env_run
 	//meaning there is no current env
@@ -44,7 +44,6 @@ sched_yield(void)
 		env_num = (env_num+1)%NENV;
 		if(envs[env_num].env_status == ENV_RUNNABLE){
 			env_run(&envs[env_num]);
-			return;
 		}
 		//env_num = (env_num+1)%NENV;
 	}
