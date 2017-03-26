@@ -203,7 +203,7 @@ sys_page_alloc(envid_t envid, void *va, int perm)
 	if(((perm & (PTE_U | PTE_P)) != (PTE_U | PTE_P)) || (perm & ~PTE_SYSCALL) )
 		return -E_INVAL;
 
-	if(page_insert(env->env_pml4e, page, va, perm)>0){
+	if(page_insert(env->env_pml4e, page, va, perm)<0){
 		page_free(page);
 		return -E_NO_MEM;
 	}
