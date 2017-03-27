@@ -699,7 +699,8 @@ page_insert(pml4e_t *pml4e, struct PageInfo *pp, void *va, int perm)
 	pte_t* pte = pml4e_walk(pml4e,(void*)va,1);
 	if(pte){
 		if(PTE_ADDR(*pte)==(pte_t)page2pa(pp)){
-			*pte = *pte | perm | PTE_P;
+			*pte = PTE_ADDR(*pte) | perm | PTE_P;
+			tlb_invalidate(pml4e,va);
 			return 0; 
 		}
 		if(*pte!=0){
@@ -712,6 +713,30 @@ page_insert(pml4e_t *pml4e, struct PageInfo *pp, void *va, int perm)
 		return 0;
 	}
 	return -E_NO_MEM;
+
+	// Fill this function in
+	/*int create = 1;
+	pte_t *pte = pml4e_walk(pml4e,va,create);
+	
+	if(pte != NULL)
+	{	
+		if(*pte & PTE_P)
+		{
+
+			page_remove(pml4e, va);
+			if((*pte & PTE_P) && (pp == pa2page(PTE_ADDR(*pte))))
+			{
+				*pte = PTE_ADDR(*pte)|perm|PTE_P;			
+				tlb_invalidate(pml4e,va);
+				return 0;
+			}
+		}		
+		pp->pp_ref++;
+		*pte = page2pa(pp) | (perm |PTE_P);
+	}
+	else return -E_NO_MEM;
+
+	return 0;*/
 }
 
 //
@@ -817,7 +842,7 @@ mmio_map_region(physaddr_t pa, size_t size)
 	uintptr_t size_round = ROUNDUP(size, PGSIZE);
 	if(base + size_round >= MMIOLIM)
 		panic("Cannot be mapped, mmio out of bound!!");
-	boot_map_region(boot_pml4, base, size_round, pa, PTE_W | PTE_PCD | PTE_PWT | PTE_P);
+	boot_map_region(boot_pml4, base, size_round, pa, PTE_W | PTE_PCD | PTE_PWT);
 	uintptr_t save_base = base;
 	base = base + size_round;
 	return (void*)save_base;

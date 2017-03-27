@@ -51,6 +51,23 @@ extern void XTPTR_MCHK();
 extern void XTPTR_SIMDERR();
 extern void XTPTR_SYSCALL();
 
+extern void XTPTR_IRQ1();
+extern void XTPTR_IRQ2();
+extern void XTPTR_IRQ3();
+extern void XTPTR_IRQ4();
+extern void XTPTR_IRQ5();
+extern void XTPTR_IRQ6();
+extern void XTPTR_IRQ7();
+extern void XTPTR_IRQ8();
+extern void XTPTR_IRQ9();
+extern void XTPTR_IRQ10();
+extern void XTPTR_IRQ11();
+extern void XTPTR_IRQ12();
+extern void XTPTR_IRQ13();
+extern void XTPTR_IRQ14();
+extern void XTPTR_IRQ15();
+
+
 static const char *trapname(int trapno)
 {
 	static const char * const excnames[] = {
@@ -241,6 +258,12 @@ trap_dispatch(struct Trapframe *tf)
 	// interrupt using lapic_eoi() before calling the scheduler!
 	// LAB 4: Your code here.
 
+	if(tf->tf_trapno == IRQ_OFFSET + IRQ_TIMER){
+		cprintf("Clock interrupt!!");
+		lapic_eoi();
+		sched_yield();
+		return;
+	}
 	if(tf->tf_trapno==14){
 		page_fault_handler(tf);
 		return;

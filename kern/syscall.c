@@ -197,7 +197,7 @@ sys_page_alloc(envid_t envid, void *va, int perm)
 	if(!page)
 		return -E_NO_MEM;
 
-	if((uint64_t)va >= UTOP || (uint64_t)va%PGSIZE!=0)
+	if((uintptr_t)va >= UTOP || PGOFF(va))
 		return -E_INVAL;
 
 	if(((perm & (PTE_U | PTE_P)) != (PTE_U | PTE_P)) || (perm & ~PTE_SYSCALL) )
@@ -251,7 +251,7 @@ sys_page_map(envid_t srcenvid, void *srcva,
 	if(((perm & (PTE_P|PTE_U))!= (PTE_P|PTE_U)) || (perm & ~PTE_SYSCALL))
 		return -E_INVAL;
 
-	if((uint64_t)srcva>=UTOP || (uint64_t)dstva>=UTOP || (uint64_t)srcva%PGSIZE!=0 || (uint64_t)dstva%PGSIZE!=0)
+	if((uintptr_t)srcva>=UTOP || (uintptr_t)dstva>=UTOP || PGOFF(srcva) || PGOFF(dstva))
 		return -E_INVAL;
 
 	struct PageInfo *page;
@@ -289,7 +289,7 @@ sys_page_unmap(envid_t envid, void *va)
 	if(ret < 0)
 		return -E_BAD_ENV;
 	
-	if((uint64_t)va >= UTOP || (uint64_t)va%PGSIZE!=0)
+	if((uintptr_t)va >= UTOP || PGOFF(va))
 		return -E_INVAL;
 
 	page_remove(env->env_pml4e, va);

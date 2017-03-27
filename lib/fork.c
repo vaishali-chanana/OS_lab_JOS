@@ -74,21 +74,21 @@ duppage(envid_t envid, unsigned pn)
 	// LAB 4: Your code here.
 	//panic("duppage not implemented");
 	pte_t pt_entry = uvpt[pn];
-
+cprintf("under duppage!!\n");
 	int perm = pt_entry & PTE_SYSCALL;
 	//int child_perm = perm;
 	void *page_addr = (void*)((uintptr_t)pn*PGSIZE);
 	if((perm & PTE_W) || (perm & PTE_COW)){
 		perm |= PTE_COW;  // cow permission
 		perm &= ~PTE_W;   // not write
-
+cprintf("duppage page_map 1\n");
 		if(sys_page_map(0,page_addr,envid,page_addr,perm)<0)
 			panic("Wrong with setting permission for child");
-
+cprintf("duppage page_map 2\n");
 		if(sys_page_map(0,page_addr,0,page_addr,perm)<0)
 			panic("wrong with setting permission for parent");
 	}else{
-
+cprintf("duppage page_map 3\n");
 	// fetch address
 	//void* page_addr = (void*)((uintptr_t)pn*PGSIZE);
 		if(sys_page_map(0,page_addr,envid,page_addr,perm)<0)
@@ -123,6 +123,7 @@ fork(void)
 	envid_t child = sys_exofork();   // create a child
 	if(child < 0)
 		panic("Fork is not working!!\n");
+cprintf("Before child 0");
 	if(child==0){
 cprintf("I am in the child\n");
 		thisenv = &envs[ENVX(sys_getenvid())];
