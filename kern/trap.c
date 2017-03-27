@@ -51,6 +51,7 @@ extern void XTPTR_MCHK();
 extern void XTPTR_SIMDERR();
 extern void XTPTR_SYSCALL();
 
+extern void XTPTR_IRQ0();
 extern void XTPTR_IRQ1();
 extern void XTPTR_IRQ2();
 extern void XTPTR_IRQ3();
@@ -131,6 +132,23 @@ trap_init(void)
 
 	//for system call
 	SETGATE(idt[48],0,GD_KT,XTPTR_SYSCALL,3);
+
+	SETGATE(idt[32],0,GD_KT,XTPTR_IRQ0,0);
+	SETGATE(idt[33],0,GD_KT,XTPTR_IRQ1,0);
+	SETGATE(idt[34],0,GD_KT,XTPTR_IRQ2,0);
+	SETGATE(idt[35],0,GD_KT,XTPTR_IRQ3,0);
+	SETGATE(idt[36],0,GD_KT,XTPTR_IRQ4,0);
+	SETGATE(idt[37],0,GD_KT,XTPTR_IRQ5,0);
+	SETGATE(idt[38],0,GD_KT,XTPTR_IRQ6,0);
+	SETGATE(idt[39],0,GD_KT,XTPTR_IRQ7,0);
+	SETGATE(idt[40],0,GD_KT,XTPTR_IRQ8,0);
+	SETGATE(idt[41],0,GD_KT,XTPTR_IRQ9,0);
+	SETGATE(idt[42],0,GD_KT,XTPTR_IRQ10,0);
+	SETGATE(idt[43],0,GD_KT,XTPTR_IRQ11,0);
+	SETGATE(idt[44],0,GD_KT,XTPTR_IRQ12,0);
+	SETGATE(idt[45],0,GD_KT,XTPTR_IRQ13,0);
+	SETGATE(idt[46],0,GD_KT,XTPTR_IRQ14,0);
+	SETGATE(idt[47],0,GD_KT,XTPTR_IRQ15,0);
 
 	idt_pd.pd_lim = sizeof(idt) - 1;
 	idt_pd.pd_base = (uint64_t)idt;
@@ -259,7 +277,7 @@ trap_dispatch(struct Trapframe *tf)
 	// LAB 4: Your code here.
 
 	if(tf->tf_trapno == IRQ_OFFSET + IRQ_TIMER){
-		cprintf("Clock interrupt!!");
+		cprintf("Clock interrupt!!\n");
 		lapic_eoi();
 		sched_yield();
 		return;
