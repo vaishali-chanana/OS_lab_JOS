@@ -46,11 +46,11 @@ cprintf("inside page fault 1\n");
 
 	//move the new page to the old page's address
 	memmove((void*)PFTEMP, addr_round, PGSIZE);
-cprintf("inside page fault 2\n";)
-	if(sys_page_map(0, PFTEMP, 0, addr_round, PTE_P|PTE_U|PTE_W)<0)
+cprintf("inside page fault 2\n");
+	if(sys_page_map(0, (void*)PFTEMP, 0, addr_round, PTE_P|PTE_U|PTE_W)<0)
 		panic("page map not working!!");
 
-	if(sys_page_unmap(0,PFTEMP)<0)
+	if(sys_page_unmap(0,(void*)PFTEMP)<0)
 		panic("page unmap not working!!");
 	//panic("pgfault not implemented");
 }
@@ -123,7 +123,7 @@ fork(void)
 	envid_t child = sys_exofork();   // create a child
 	if(child < 0)
 		panic("Fork is not working!!\n");
-	else if(child==0){
+	if(child==0){
 cprintf("I am in the child\n");
 		thisenv = &envs[ENVX(sys_getenvid())];
 cprintf("I am in child after this env\n");
