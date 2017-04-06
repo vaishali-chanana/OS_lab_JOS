@@ -146,9 +146,9 @@ fork(void)
 						if(uvpd[pdp_ctr + k] & PTE_P){
 							for(l=0 ; l<NPTENTRIES ; l++){
 								if(uvpt[pt_ctr + l] & PTE_P){
-cprintf("if under1\n");
+//cprintf("if under1\n");
 									if((pt_ctr + l)!=VPN(UXSTACKTOP-PGSIZE)){
-cprintf("if under2\n");
+//cprintf("if under2\n");
 										if(duppage(child, (unsigned)(pt_ctr + l))<0)
 											panic("Page mapping cannot be copied for child!!!");
 									}
@@ -166,14 +166,14 @@ cprintf("if under2\n");
 			pdpe_ctr = (i+1)*NPDPENTRIES;
 		}
 	}
-cprintf("after walking");	
+//cprintf("after walking\n");	
 	// we need page_fault upcall too as this is user env
 	extern void _pgfault_upcall(void);
 	if(sys_env_set_pgfault_upcall(child,_pgfault_upcall)<0)
 		panic("Pgfault upcall for child could not be set!!");
 	
 	// mark child as runnable
-cprintf("marking child as runnable");
+//cprintf("marking child as runnable\n");
 	if(sys_env_set_status(child,ENV_RUNNABLE)<0)
 		panic("Status of child could not be set!!");
 	return child;

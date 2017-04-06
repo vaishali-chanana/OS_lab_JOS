@@ -13,7 +13,7 @@ void
 umain(int argc, char **argv)
 {
 	envid_t who;
-
+cprintf("1\n");
 	if ((who = fork()) == 0) {
 		// Child
 		ipc_recv(&who, TEMP_ADDR_CHILD, 0);
@@ -27,10 +27,12 @@ umain(int argc, char **argv)
 	}
 
 	// Parent
+cprintf("2\n");
 	sys_page_alloc(thisenv->env_id, TEMP_ADDR, PTE_P | PTE_W | PTE_U);
+cprintf("3\n");
 	memcpy(TEMP_ADDR, str1, strlen(str1) + 1);
 	ipc_send(who, 0, TEMP_ADDR, PTE_P | PTE_W | PTE_U);
-
+cprintf("after send\n");
 	ipc_recv(&who, TEMP_ADDR, 0);
 	cprintf("%x got message : %s\n", who, TEMP_ADDR);
 	if (strncmp(TEMP_ADDR, str2, strlen(str2)) == 0)
