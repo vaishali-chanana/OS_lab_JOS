@@ -61,6 +61,7 @@ i386_init(void)
 
 	// Acquire the big kernel lock before waking up APs
 	// LAB 4: Your code here.
+	lock_kernel();
 
 	// Starting non-boot CPUs
 	boot_aps();
@@ -76,8 +77,23 @@ i386_init(void)
 	ENV_CREATE(TEST, ENV_TYPE_USER);
 #else
 	// Touch all you want.
-
 	ENV_CREATE(user_icode, ENV_TYPE_USER);
+	//ENV_CREATE(user_yield, ENV_TYPE_USER);
+	//ENV_CREATE(user_yield, ENV_TYPE_USER);
+	//ENV_CREATE(user_yield, ENV_TYPE_USER);
+	//ENV_CREATE(user_primes, ENV_TYPE_USER);
+//ENV_CREATE(breakpoint, ENV_TYPE_USER);
+	//ENV_CREATE(user_hello, ENV_TYPE_USER);
+	//ENV_CREATE(user_dumbfork, ENV_TYPE_USER);
+	//ENV_CREATE(user_faultread, ENV_TYPE_USER);
+	//ENV_CREATE(user_faultdie, ENV_TYPE_USER);
+	//ENV_CREATE(user_faultalloc, ENV_TYPE_USER);
+	//ENV_CREATE(user_faultallocbad, ENV_TYPE_USER);
+	//ENV_CREATE(user_forktree, ENV_TYPE_USER);
+	//ENV_CREATE(user_spin, ENV_TYPE_USER);
+	//ENV_CREATE(user_sendpage, ENV_TYPE_USER);
+	//ENV_CREATE(user_pingpong, ENV_TYPE_USER);
+	//ENV_CREATE(user_primes, ENV_TYPE_USER);
 #endif // TEST*
 
 	// Should not be necessary - drains keyboard because interrupt has given up.
@@ -136,9 +152,10 @@ mp_main(void)
 	// to start running processes on this CPU.  But make sure that
 	// only one CPU can enter the scheduler at a time!
 	// LAB 4: Your code here.
-
+	lock_kernel();
+	sched_yield();
 	// Remove this after you finish Exercise 4
-	for (;;);
+//	for (;;);
 }
 
 

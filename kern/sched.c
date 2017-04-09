@@ -30,8 +30,28 @@ sched_yield(void)
 	// below to halt the cpu.
 
 	// LAB 4: Your code here.
+	idle = thiscpu->cpu_env;
+	int env_num = 0;
+	//check if the current env is null
+	//this has to be checked because kern init does not call env_run
+	//meaning there is no current env
+	if(idle)
+		env_num = ENVX(thiscpu->cpu_env->env_id);
 
+	size_t ctr;
+//	env_num = (env_num+1)%NENV;
+	for(ctr=0 ; ctr<NENV ; ctr++){
+		env_num = (env_num+1)%NENV;
+		if(envs[env_num].env_status == ENV_RUNNABLE){
+			env_run(&envs[env_num]);
+		}
+		//env_num = (env_num+1)%NENV;
+	}
 	// sched_halt never returns
+	//this will be in flow when there is no runnable env
+	if(idle && idle->env_status==ENV_RUNNING)
+		env_run(idle);
+
 	sched_halt();
 }
 
