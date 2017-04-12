@@ -77,7 +77,7 @@ i386_init(void)
 	ENV_CREATE(TEST, ENV_TYPE_USER);
 #else
 	// Touch all you want.
-	ENV_CREATE(user_icode, ENV_TYPE_USER);
+	//ENV_CREATE(user_icode, ENV_TYPE_USER);
 	//ENV_CREATE(user_yield, ENV_TYPE_USER);
 	//ENV_CREATE(user_yield, ENV_TYPE_USER);
 	//ENV_CREATE(user_yield, ENV_TYPE_USER);
@@ -94,6 +94,9 @@ i386_init(void)
 	//ENV_CREATE(user_sendpage, ENV_TYPE_USER);
 	//ENV_CREATE(user_pingpong, ENV_TYPE_USER);
 	//ENV_CREATE(user_primes, ENV_TYPE_USER);
+	//ENV_CREATE(user_testfile, ENV_TYPE_USER);
+	//ENV_CREATE(user_spawnhello, ENV_TYPE_USER);
+	ENV_CREATE(user_testpteshare, ENV_TYPE_USER);
 #endif // TEST*
 
 	// Should not be necessary - drains keyboard because interrupt has given up.

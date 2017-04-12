@@ -74,21 +74,27 @@ duppage(envid_t envid, unsigned pn)
 	// LAB 4: Your code here.
 	//panic("duppage not implemented");
 	pte_t pt_entry = uvpt[pn];
-//cprintf("under duppage!!\n");
+cprintf("under duppage!!\n");
 	int perm = pt_entry & PTE_SYSCALL;
 	//int child_perm = perm;
 	void *page_addr = (void*)((uintptr_t)pn*PGSIZE);
-	if((perm & PTE_W) || (perm & PTE_COW)){
+
+
+	//LAB 5: modifications for PTE_SHARE
+	if(perm & PTE_SHARE){
+		if((r = sys_page_map(0, page_addr, envid, page_addr, perm)) < 0)
+			panic("Wrong with share permissions\n");
+	}else if((perm & PTE_W) || (perm & PTE_COW)){
 		perm |= PTE_COW;  // cow permission
 		perm &= ~PTE_W;   // not write
-//cprintf("duppage page_map 1\n");
+cprintf("duppage page_map 1\n");
 		if(sys_page_map(0,page_addr,envid,page_addr,perm)<0)
-			panic("Wrong with setting permission for child");
-//cprintf("duppage page_map 2\n");
+			panic("Wrong with setting permission for child\n");
+cprintf("duppage page_map 2\n");
 		if(sys_page_map(0,page_addr,0,page_addr,perm)<0)
-			panic("wrong with setting permission for parent");
+			panic("wrong with setting permission for parent\n");
 	}else{
-//cprintf("duppage page_map 3\n");
+cprintf("duppage page_map 3\n");
 	// fetch address
 	//void* page_addr = (void*)((uintptr_t)pn*PGSIZE);
 		if(sys_page_map(0,page_addr,envid,page_addr,perm)<0)
@@ -123,11 +129,11 @@ fork(void)
 	envid_t child = sys_exofork();   // create a child
 	if(child < 0)
 		panic("Fork is not working!!\n");
-//cprintf("Before child 0");
+cprintf("Before child 0");
 	if(child==0){
-//cprintf("I am in the child\n");
+cprintf("I am in the child\n");
 		thisenv = &envs[ENVX(sys_getenvid())];
-//cprintf("I am in child after this env\n");
+cprintf("I am in child after this env\n");
 		return 0;
 	}
 	
@@ -140,40 +146,40 @@ fork(void)
 	int pdpe_ctr=0, pdp_ctr=0, pt_ctr=0;
 	for(i=0 ; i<VPML4E(UTOP) ; i++){
 		if(uvpml4e[i] & PTE_P){
-			for(j=0 ; j<NPDPENTRIES ; j++){
-				if(uvpde[pdpe_ctr +j] & PTE_P){
-					for(k=0 ; k<NPDENTRIES ; k++){
-						if(uvpd[pdp_ctr + k] & PTE_P){
-							for(l=0 ; l<NPTENTRIES ; l++){
-								if(uvpt[pt_ctr + l] & PTE_P){
-//cprintf("if under1\n");
-									if((pt_ctr + l)!=VPN(UXSTACKTOP-PGSIZE)){
-//cprintf("if under2\n");
-										if(duppage(child, (unsigned)(pt_ctr + l))<0)
+			for(j=0 ; j<NPDPENTRIES ; j++, pdpe_ctr++){
+				if(uvpde[pdpe_ctr] & PTE_P){
+					for(k=0 ; k<NPDENTRIES ; k++, pdp_ctr++){
+						if(uvpd[pdp_ctr ] & PTE_P){
+							for(l=0 ; l<NPTENTRIES ; l++, pt_ctr++){
+								if(uvpt[pt_ctr] & PTE_P){
+cprintf("if under1\n");
+									if((pt_ctr)!=VPN(UXSTACKTOP-PGSIZE)){
+cprintf("if under2\n");
+										if(duppage(child, (unsigned)(pt_ctr ))<0)
 											panic("Page mapping cannot be copied for child!!!");
 									}
 								}
 							}
 						}else{
-							pt_ctr = (pdp_ctr+k+1)*NPTENTRIES;
+							pt_ctr = (pdp_ctr+1)*NPTENTRIES;
 						}
 					}
 				}else{
-					pdp_ctr = (pdpe_ctr+j+1)*NPDENTRIES;
+					pdp_ctr = (pdpe_ctr+1)*NPDENTRIES;
 				}
 			}
 		}else{
 			pdpe_ctr = (i+1)*NPDPENTRIES;
 		}
 	}
-//cprintf("after walking\n");	
+cprintf("after walking\n");	
 	// we need page_fault upcall too as this is user env
 	extern void _pgfault_upcall(void);
 	if(sys_env_set_pgfault_upcall(child,_pgfault_upcall)<0)
 		panic("Pgfault upcall for child could not be set!!");
 	
 	// mark child as runnable
-//cprintf("marking child as runnable\n");
+cprintf("marking child as runnable\n");
 	if(sys_env_set_status(child,ENV_RUNNABLE)<0)
 		panic("Status of child could not be set!!");
 	return child;

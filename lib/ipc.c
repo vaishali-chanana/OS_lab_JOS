@@ -61,15 +61,15 @@ ipc_send(envid_t to_env, uint32_t val, void *pg, int perm)
 	// LAB 4: Your code here.
 	//panic("ipc_send not implemented");
 //cprintf("ipc send\n");
-	int error = -E_IPC_NOT_RECV ;
-	if(!pg)
-		pg = (void*)KERNBASE;	
-	do{
+	int error = -E_IPC_NOT_RECV ;	
+	while(error==-E_IPC_NOT_RECV){
+		if(!pg)
+			pg = (void*)KERNBASE;
 		error = sys_ipc_try_send(to_env,val,pg,perm);
-		if(error == -E_IPC_NOT_RECV)
+		//if(error == -E_IPC_NOT_RECV)
 			sys_yield();
 		
-	}while(error==-E_IPC_NOT_RECV);
+	}
 //cprintf("error not -\n");
 	if(error != 0)
 		panic("Error other than -E_IPC_NOT_RECV\n");

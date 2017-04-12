@@ -145,7 +145,17 @@ sys_env_set_trapframe(envid_t envid, struct Trapframe *tf)
 	// LAB 5: Your code here.
 	// Remember to check whether the user has supplied us with a good
 	// address!
-	panic("sys_env_set_trapframe not implemented");
+	//panic("sys_env_set_trapframe not implemented");
+	struct Env *env;
+	int ret;
+	if((ret = envid2env(envid, &env, 1)) < 0)
+		return -E_BAD_ENV;
+
+	env->env_tf = *tf;
+	env->env_tf.tf_cs |= 3;
+	env->env_tf.tf_eflags |= FL_IF;
+
+	return 0;
 }
 
 // Set the page fault upcall for 'envid' by modifying the corresponding struct
@@ -350,46 +360,42 @@ sys_page_unmap(envid_t envid, void *va)
 static int
 sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 {
-		// LAB 4: Your code here.
-		//panic("sys_ipc_try_send not implemented");
-	struct Env* dstenv;
-	struct Env* srcenv;
-	pte_t* pte_store;
-	int srcperm;
-	perm|= PTE_P;
-	if(envid2env(envid, &dstenv,0) != 0)
+	// LAB 4: Your code here.
+	//panic("sys_ipc_try_send not implemented");
+
+	struct Env *dstenv;
+	int r ;
+	if((r = envid2env(envid, &dstenv, 0)) < 0)
 		return -E_BAD_ENV;
 
-	if(envid2env(0, &srcenv,0) != 0)
-		return -E_BAD_ENV;
-	
-	if(!dstenv->env_ipc_recving)
+	if(dstenv->env_ipc_recving==0)
 		return -E_IPC_NOT_RECV;
 
-	if(!page_lookup(srcenv->env_pml4e,srcva,&pte_store))
-		if(srcva <(void*)UTOP)
-			return -E_INVAL;
-	srcperm = *pte_store&0x1FF;
-	if(srcva <(void*)UTOP)
-		if((((uint64_t)srcva)%PGSIZE!=0) || ((srcperm & (PTE_U | PTE_P))!=(PTE_U | PTE_P)))
-			return -E_INVAL;
-	if((srcva <(void*)UTOP) && ((perm & PTE_W) !=0) &&(((srcperm& PTE_W) == 0)))
+	dstenv->env_ipc_recving = 0;
+	dstenv->env_ipc_from = curenv->env_id;
+	dstenv->env_ipc_perm = 0;
+	
+	if(srcva < (void*)UTOP && (uint64_t)srcva%PGSIZE!=0)
 		return -E_INVAL;
 
+	int valid_perm = PTE_U|PTE_P;
+	if((srcva < (void*)UTOP) && (((perm & valid_perm) != valid_perm)|| (perm & ~PTE_SYSCALL)))
+		return -E_INVAL;
 
+	pte_t* pt_entry;
+	struct PageInfo *map = page_lookup(curenv->env_pml4e, srcva, &pt_entry);
 
-	dstenv->env_ipc_recving = 0;
-	dstenv->env_ipc_from = srcenv->env_id;
+	if((srcva < (void*)UTOP) && (!(map) || ((perm & PTE_W) && !(*pt_entry & PTE_W))))
+		return -E_INVAL;
+
+	if((srcva < (void*)UTOP) && (page_insert(dstenv->env_pml4e, map, dstenv->env_ipc_dstva , perm) < 0))
+		return -E_NO_MEM;
+
+	dstenv->env_ipc_perm = perm;
 	dstenv->env_ipc_value = value;
-	if(srcva <(void*)UTOP && dstenv->env_ipc_dstva <(void*)UTOP){
-		dstenv->env_ipc_perm = perm;
-		if(0< sys_page_map(srcenv->env_id,srcva,dstenv->env_id,dstenv->env_ipc_dstva,perm))
-			return -E_NO_MEM;
-	}
 	dstenv->env_status = ENV_RUNNABLE;
-	return 0;
-
-	}
+	return 0;	
+}
 
 // Block until a value is ready.  Record that you want to receive
 // using the env_ipc_recving and env_ipc_dstva fields of struct Env,
@@ -406,21 +412,21 @@ static int
 sys_ipc_recv(void *dstva)
 {
 	// LAB 4: Your code here.
-	struct Env* env;
-	if(envid2env(0, &env,0) != 0)
+	//struct Env* env;
+	/*if(envid2env(0, &env,0) != 0)
 	{
 		return -E_BAD_ENV;
-	}
+	}*/
 	if(dstva <(void*)UTOP && (uint64_t)dstva%PGSIZE!=0)
 		return -E_INVAL;
-	if(dstva <(void*)UTOP)
-		env->env_ipc_dstva = dstva;
+	//if(dstva <(void*)UTOP)
+	curenv->env_ipc_dstva = dstva;
 
-	env->env_ipc_recving = 1;
+	curenv->env_ipc_recving = 1;
 
-	env->env_status = ENV_NOT_RUNNABLE;
-	env->env_tf.tf_regs.reg_rax = 0;
-	while(env->env_ipc_recving == 1)
+	curenv->env_status = ENV_NOT_RUNNABLE;
+	curenv->env_tf.tf_regs.reg_rax = 0;
+	//while(env->env_ipc_recving == 1)
 		sys_yield();
 	return 0;
 	//panic("sys_ipc_recv not implemented");
@@ -458,6 +464,7 @@ syscall(uint64_t syscallno, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, 
 	case SYS_env_set_pgfault_upcall: return sys_env_set_pgfault_upcall((envid_t)a1, (void*)a2);
 	case SYS_ipc_try_send: return sys_ipc_try_send((envid_t)a1, (uint32_t)a2, (void*)a3, (unsigned)a4);
 	case SYS_ipc_recv: return sys_ipc_recv((void*)a1);
+	case SYS_env_set_trapframe: return sys_env_set_trapframe((envid_t)a1, (struct Trapframe*)a2);
 	default:
 		return -E_INVAL;
 	}

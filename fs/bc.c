@@ -59,7 +59,7 @@ bc_pgfault(struct UTrapframe *utf)
 		panic("ide_read did not workout!!");
 
 
-	if ((r = sys_page_map(0, addr, 0, addr, uvpt[PGNUM(addr)] & PTE_SYSCALL)) < 0)
+	if ((r = sys_page_map(0, addr_round, 0, addr_round, uvpt[PGNUM(addr_round)] & PTE_SYSCALL)) < 0)
 		panic("in bc_pgfault, sys_page_map: %e", r);
 
 	// Check that the block we read was allocated. (exercise for
