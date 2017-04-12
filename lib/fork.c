@@ -74,7 +74,7 @@ duppage(envid_t envid, unsigned pn)
 	// LAB 4: Your code here.
 	//panic("duppage not implemented");
 	pte_t pt_entry = uvpt[pn];
-cprintf("under duppage!!\n");
+//cprintf("under duppage!!\n");
 	int perm = pt_entry & PTE_SYSCALL;
 	//int child_perm = perm;
 	void *page_addr = (void*)((uintptr_t)pn*PGSIZE);
@@ -87,14 +87,14 @@ cprintf("under duppage!!\n");
 	}else if((perm & PTE_W) || (perm & PTE_COW)){
 		perm |= PTE_COW;  // cow permission
 		perm &= ~PTE_W;   // not write
-cprintf("duppage page_map 1\n");
+//cprintf("duppage page_map 1\n");
 		if(sys_page_map(0,page_addr,envid,page_addr,perm)<0)
 			panic("Wrong with setting permission for child\n");
-cprintf("duppage page_map 2\n");
+//cprintf("duppage page_map 2\n");
 		if(sys_page_map(0,page_addr,0,page_addr,perm)<0)
 			panic("wrong with setting permission for parent\n");
 	}else{
-cprintf("duppage page_map 3\n");
+//cprintf("duppage page_map 3\n");
 	// fetch address
 	//void* page_addr = (void*)((uintptr_t)pn*PGSIZE);
 		if(sys_page_map(0,page_addr,envid,page_addr,perm)<0)
@@ -129,11 +129,11 @@ fork(void)
 	envid_t child = sys_exofork();   // create a child
 	if(child < 0)
 		panic("Fork is not working!!\n");
-cprintf("Before child 0");
+//cprintf("Before child 0");
 	if(child==0){
-cprintf("I am in the child\n");
+//cprintf("I am in the child\n");
 		thisenv = &envs[ENVX(sys_getenvid())];
-cprintf("I am in child after this env\n");
+//cprintf("I am in child after this env\n");
 		return 0;
 	}
 	
@@ -152,9 +152,9 @@ cprintf("I am in child after this env\n");
 						if(uvpd[pdp_ctr ] & PTE_P){
 							for(l=0 ; l<NPTENTRIES ; l++, pt_ctr++){
 								if(uvpt[pt_ctr] & PTE_P){
-cprintf("if under1\n");
+//cprintf("if under1\n");
 									if((pt_ctr)!=VPN(UXSTACKTOP-PGSIZE)){
-cprintf("if under2\n");
+//cprintf("if under2\n");
 										if(duppage(child, (unsigned)(pt_ctr ))<0)
 											panic("Page mapping cannot be copied for child!!!");
 									}
@@ -172,14 +172,14 @@ cprintf("if under2\n");
 			pdpe_ctr = (i+1)*NPDPENTRIES;
 		}
 	}
-cprintf("after walking\n");	
+//cprintf("after walking\n");	
 	// we need page_fault upcall too as this is user env
 	extern void _pgfault_upcall(void);
 	if(sys_env_set_pgfault_upcall(child,_pgfault_upcall)<0)
 		panic("Pgfault upcall for child could not be set!!");
 	
 	// mark child as runnable
-cprintf("marking child as runnable\n");
+//cprintf("marking child as runnable\n");
 	if(sys_env_set_status(child,ENV_RUNNABLE)<0)
 		panic("Status of child could not be set!!");
 	return child;

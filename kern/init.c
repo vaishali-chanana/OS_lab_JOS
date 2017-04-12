@@ -96,7 +96,8 @@ i386_init(void)
 	//ENV_CREATE(user_primes, ENV_TYPE_USER);
 	//ENV_CREATE(user_testfile, ENV_TYPE_USER);
 	//ENV_CREATE(user_spawnhello, ENV_TYPE_USER);
-	ENV_CREATE(user_testpteshare, ENV_TYPE_USER);
+	//ENV_CREATE(user_testpteshare, ENV_TYPE_USER);
+	ENV_CREATE(user_primespipe, ENV_TYPE_USER);
 #endif // TEST*
 
 	// Should not be necessary - drains keyboard because interrupt has given up.
