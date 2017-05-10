@@ -31,7 +31,7 @@ pipe(int pfd[2])
 	int r;
 	struct Fd *fd0, *fd1;
 	void *va;
-
+cprintf("inside pipe\n");
 	// allocate the file descriptor table entries
 	if ((r = fd_alloc(&fd0)) < 0
             || (r = sys_page_alloc(0, fd0, PTE_P|PTE_W|PTE_U|PTE_SHARE)) < 0)

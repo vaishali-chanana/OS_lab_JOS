@@ -57,6 +57,7 @@ umain(int argc, char **argv)
 	if ((i=pipe(p)) < 0)
 		panic("pipe: %e", i);
 	// fork the first prime process in the chain
+cprintf("value of p %d and 2 %d",p[0],p[1]);
 	if ((id=fork()) < 0)
 		panic("fork: %e", id);
 	if (id == 0) {
