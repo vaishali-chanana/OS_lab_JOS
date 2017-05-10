@@ -14,24 +14,27 @@ umain(int argc, char **argv)
 
 	if (argc != 0)
 		childofspawn();
-
+cprintf("after childofspawwn\n");
 	if ((r = sys_page_alloc(0, VA, PTE_P|PTE_W|PTE_U|PTE_SHARE)) < 0)
 		panic("sys_page_alloc: %e", r);
 
 	// check fork
+cprintf("before fork\n");
 	if ((r = fork()) < 0)
 		panic("fork: %e", r);
 	if (r == 0) {
 		strcpy(VA, msg);
 		exit();
 	}
+cprintf("after fork\n");
 	wait(r);
 	cprintf("fork handles PTE_SHARE %s\n", strcmp(VA, msg) == 0 ? "right" : "wrong");
-
+cprintf("before spawn\n");
 	// check spawn
 	if ((r = spawnl("/bin/testpteshare", "testpteshare", "arg", 0)) < 0)
 		panic("spawn: %e", r);
 	wait(r);
+cprintf("after spawn\n");
 	cprintf("spawn handles PTE_SHARE %s\n", strcmp(VA, msg2) == 0 ? "right" : "wrong");
 
 	breakpoint();

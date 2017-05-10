@@ -301,7 +301,36 @@ static int
 copy_shared_pages(envid_t child)
 {
 	// LAB 5: Your code here.
-
+	size_t i,j,k,l;
+	uint64_t pdpe_ctr=0, pdp_ctr=0, pt_ctr=0;
+	int perm;
+	for(i=0; i<VPML4E(UTOP); i++){
+		if(uvpml4e[i] & PTE_P){
+			for(j=0; j<NPDPENTRIES; j++, pdpe_ctr++){
+				if(uvpde[pdpe_ctr] & PTE_P){
+					for(k=0; k<NPDENTRIES; k++, pdp_ctr++){
+						if(uvpd[pdp_ctr] & PTE_P){
+							for(l=0; l<NPTENTRIES; l++, pt_ctr++){
+								if(uvpt[pt_ctr] & PTE_SHARE){
+									perm = uvpt[pt_ctr] & PTE_SYSCALL;
+									void *addr = (void*)(pt_ctr*PGSIZE);
+									int ret;
+									if((ret = sys_page_map(0, addr, child, addr, perm)) < 0)
+										panic("Shared pages could not be copied!!\n");
+								}
+							}
+						}else{
+							pt_ctr = (pdp_ctr+1)*NPTENTRIES;
+						}
+					}
+				}else{
+					pdp_ctr = (pdpe_ctr+1)*NPDENTRIES;
+				}
+			}
+		}else{
+			pdpe_ctr = (i+1)*NPDPENTRIES;
+		}
+	} 
 	return 0;
 }
 

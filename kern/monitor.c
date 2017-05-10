@@ -27,6 +27,7 @@ struct Command {
 static struct Command commands[] = {
 	{ "help", "Display this list of commands", mon_help },
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
+        { "backtrace", "Display RIP backtrace details", mon_backtrace }
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
@@ -62,9 +63,48 @@ int
 mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 {
 	// Your code here.
+        uint64_t *rbp = (uint64_t*)read_rbp();
+        uint64_t rip ;
+        //to read rip for latest function - get mon_backtrace as one of the functions
+        read_rip(rip);
+        
+
+        cprintf("Stack backtrace:\n");
+        while(rbp!=0x00){
+             //uint64_t rip = *(rbp+1);
+             struct Ripdebuginfo rip_deb;
+             cprintf("  rbp %016x rip %016x\n",rbp,rip);
+             //debuginfo_rip(rip,&rip_deb);
+             if(debuginfo_rip(rip,&rip_deb)==0)
+             {
+                 cprintf("      %s:%d: %s+%016x args:%d ",
+                     rip_deb.rip_file,
+                     rip_deb.rip_line,
+                     rip_deb.rip_fn_name,
+                     (uint64_t)rip-rip_deb.rip_fn_addr,           //offset of rip from first instruction of function
+                     rip_deb.rip_fn_narg);
+
+                 int arg_cnt = rip_deb.rip_fn_narg;
+                 int args = 1;
+             
+                 //decrement rbp to get actual function parameters
+                 //found that actual value reside at after 32 bits, so shifting bits
+                 while(arg_cnt>0)
+                 {
+                     cprintf("%016x ",*(rbp-args)>>32);
+                     --arg_cnt;
+                     ++args;
+
+                 }
+                 cprintf("\n");
+              }
+             rip = *(rbp+1);
+             //updating rbp pointer for caller functions
+             rbp = (uint64_t*) *rbp;
+             
+       }
 	return 0;
 }
-
 
 
 /***** Kernel monitor command interpreter *****/

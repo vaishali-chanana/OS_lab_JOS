@@ -17,6 +17,7 @@ primeproc(int fd)
 
 	// fetch a prime from our left neighbor
 top:
+cprintf("before readn");
 	if ((r = readn(fd, &p, 4)) != 4)
 		panic("primeproc could not read initial prime: %d, %e", r, r >= 0 ? 0 : r);
 
@@ -53,14 +54,12 @@ umain(int argc, char **argv)
 	int i, id, p[2], r;
 
 	binaryname = "primespipe";
-
 	if ((i=pipe(p)) < 0)
 		panic("pipe: %e", i);
-
 	// fork the first prime process in the chain
+cprintf("value of p %d and 2 %d",p[0],p[1]);
 	if ((id=fork()) < 0)
 		panic("fork: %e", id);
-
 	if (id == 0) {
 		close(p[1]);
 		primeproc(p[0]);
