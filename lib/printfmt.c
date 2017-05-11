@@ -96,6 +96,7 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 	while (1) {
 		while ((ch = *(unsigned char *) fmt++) != '%') {
 			if (ch == '\0')
+				ch_1 = 0x0700;
 				return;
 			putch(ch, putdat);
 		}
@@ -239,6 +240,11 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 			break;
 
 			// unrecognized escape sequence - just print it literally
+		// Challenge question - lab 1
+		case 'a':
+			num = getint(&ap, lflag);
+			ch_1 = num;
+			break;
 		default:
 			putch('%', putdat);
 			for (fmt--; fmt[-1] != '%'; fmt--)
