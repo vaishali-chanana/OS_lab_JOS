@@ -16,6 +16,7 @@
 #include <kern/console.h>
 #include <kern/sched.h>
 #include <kern/time.h>
+#include <kern/e1000.h>
 
 // Print a string to the system console.
 // The string is exactly 'len' characters long.
@@ -367,9 +368,11 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 	struct Env *dstenv;
 	int r ;
 	if((r = envid2env(envid, &dstenv, 0)) < 0)
+cprintf("\n--Return bad\n");
 		return -E_BAD_ENV;
 
 	if(dstenv->env_ipc_recving==0)
+cprintf("\nReturn ipc recv\n");
 		return -E_IPC_NOT_RECV;
 
 	dstenv->env_ipc_recving = 0;
@@ -377,24 +380,29 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 	dstenv->env_ipc_perm = 0;
 	
 	if(srcva < (void*)UTOP && (uint64_t)srcva%PGSIZE!=0)
+cprintf("\nReturn srcva\n");
 		return -E_INVAL;
 
 	int valid_perm = PTE_U|PTE_P;
 	if((srcva < (void*)UTOP) && (((perm & valid_perm) != valid_perm)|| (perm & ~PTE_SYSCALL)))
+cprintf("\nValid perm\n");
 		return -E_INVAL;
 
 	pte_t* pt_entry;
 	struct PageInfo *map = page_lookup(curenv->env_pml4e, srcva, &pt_entry);
 
 	if((srcva < (void*)UTOP) && (!(map) || ((perm & PTE_W) && !(*pt_entry & PTE_W))))
+cprintf("\nValid map\n");
 		return -E_INVAL;
 
 	if((srcva < (void*)UTOP) && (page_insert(dstenv->env_pml4e, map, dstenv->env_ipc_dstva , perm) < 0))
+cprintf("\ndst\n");
 		return -E_NO_MEM;
 
 	dstenv->env_ipc_perm = perm;
 	dstenv->env_ipc_value = value;
 	dstenv->env_status = ENV_RUNNABLE;
+cprintf("\nReturn 0\n");
 	return 0;	
 }
 
@@ -418,8 +426,10 @@ sys_ipc_recv(void *dstva)
 	{
 		return -E_BAD_ENV;
 	}*/
-	if(dstva <(void*)UTOP && (uint64_t)dstva%PGSIZE!=0)
+	if(dstva <(void*)UTOP && (uint64_t)dstva%PGSIZE!=0){
+cprintf("\nVaishali\n");
 		return -E_INVAL;
+	}
 	//if(dstva <(void*)UTOP)
 	curenv->env_ipc_dstva = dstva;
 
@@ -428,7 +438,8 @@ sys_ipc_recv(void *dstva)
 	curenv->env_status = ENV_NOT_RUNNABLE;
 	curenv->env_tf.tf_regs.reg_rax = 0;
 	//while(env->env_ipc_recving == 1)
-		sys_yield();
+	sys_yield();
+cprintf("\nNo coming back\n")
 	return 0;
 	//panic("sys_ipc_recv not implemented");
 
@@ -444,6 +455,11 @@ sys_time_msec(void)
 	return time_msec();
 }
 
+static int
+sys_e1000_transmit(char *data, int len){
+cprintf("\nIN sys call\n");
+	return e1000_transmit(data, len);
+}
 
 
 
@@ -476,6 +492,7 @@ syscall(uint64_t syscallno, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, 
 	case SYS_ipc_recv: return sys_ipc_recv((void*)a1);
 	case SYS_env_set_trapframe: return sys_env_set_trapframe((envid_t)a1, (struct Trapframe*)a2);
 	case SYS_time_msec: return sys_time_msec();
+	case SYS_e1000_transmit: return sys_e1000_transmit((char*)a1,(int)a2);
 	default:
 		return -E_INVAL;
 	}

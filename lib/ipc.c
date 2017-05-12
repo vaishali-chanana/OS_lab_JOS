@@ -35,6 +35,7 @@ ipc_recv(envid_t *from_env_store, void *pg, int *perm_store)
 			*from_env_store = 0;
 		if(perm_store)
 			*perm_store = 0;
+	return temp;
 	}
 
 	if(from_env_store)
@@ -71,8 +72,10 @@ ipc_send(envid_t to_env, uint32_t val, void *pg, int perm)
 		
 	}
 //cprintf("error not -\n");
-	if(error != 0)
-		panic("Error other than -E_IPC_NOT_RECV\n");
+//cprintf("\nIPC_not_RECV %d",-E_IPC_NOT_RECV);
+//cprintf("\nError is : %d", error);
+	/*if(error != 0)
+		panic("Error other than -E_IPC_NOT_RECV\n");*/
 
 }
 
